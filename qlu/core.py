@@ -61,7 +61,7 @@ def by_assignee(data):
 class AssigneeWorkDateIterator:
     """
     For a specific user, iterate the available workdays for that user.
-    Taking into account the
+    Taking into account public_holidays and personal_holidays
     """
 
     def __init__(self, username, public_holidays, personal_holidays, weekdays_off=WEEKDAYS_OFF, start_date=None):
@@ -89,10 +89,10 @@ class TaskScheduler:
 
     def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays, start_date=None):
         """
-
         :param tasks: List of Task objects
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of persional holidays (datetime.date()) keyed by task username
+        :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
         self.tasks = {t.id: t for t in tasks}
         self.milestones = {m.name: m for m in milestones}
@@ -108,25 +108,32 @@ class TaskScheduler:
         """
         Run montecarlo simulation for the number of trials specified
         :param trials: number of trials
-        :return: results
+        :return: (list) [(SCHEDULED_TASKS, ASSIGNEE_TASKS), ...]
         """
         results = []
         for trial in range(trials):
-            result = self.schedule()
-            results.append(result)
+            result_pair = self.schedule()
+            results.append(result_pair)
         return results
 
     def schedule(self, is_montecarlo=False):
         """
         Schedule tasks given on instantiation
-        :param is_montecarlo: (bool)
-        :return: (dict)
+        :param is_montecarlo: (bool) If True, random value selected using triangular distribution
+        :return: (dict) scheduled_tasks, assignee_tasks
+            scheduled_tasks =
             { TASK_ID: {
                     WORK_DATE,
                     ...
                 ], ...
+            },
+            assignee_tasks =
+            { ASSIGNEE_USERNAME: [
+                TASK_OBJECT,
+                ...
+                ],
+                ...
             }
-
         """
         # filter tasks to dependant and non-dependant
         dependant_tasks = {}
@@ -215,7 +222,7 @@ class TaskScheduler:
                             # add to all tasks
                             all_assignee_tasks[assignee].append(task)
                         else:
-                            print('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id, milestone_name))
+                            warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id, milestone_name))
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if newly_scheduled < tasks_to_schedule:
@@ -223,7 +230,7 @@ class TaskScheduler:
                         looped_work_date = next(assignees_date_iterators[assignee])
                     else:
                         break  # All tasks are scheduled
-        return scheduled_tasks
+        return scheduled_tasks, all_assignee_tasks
 
 
 

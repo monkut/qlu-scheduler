@@ -48,11 +48,11 @@ def test_scheduler():
                               public_holidays=PUBLIC_HOLIDAYS,
                               assignee_personal_holidays=PERSONAL_HOLIDAYS,
                               start_date=START_DATE)
-    result = scheduler.schedule()
-    assert len(result) == len(TEST_TASKS)
-    assert result[1][0] == datetime.date(2017, 9, 18)  # should be next Monday
-    assert result[1][-1] == datetime.date(2017, 9, 22)
-    assert result[2][0] == datetime.date(2017, 10, 3)  # not started until milestone starts
-    assert result[2][-1] == datetime.date(2017, 10, 9)
-    assert result[3][0] == datetime.date(2017, 9, 18)  # not started until milestone starts
-    assert result[3][-1] == datetime.date(2017, 9, 22)
+    scheduled_tasks, assignee_tasks = scheduler.schedule()
+    assert len(scheduled_tasks) == len(TEST_TASKS)
+    assert scheduled_tasks[1][0] == datetime.date(2017, 9, 18)  # should be next Monday
+    assert scheduled_tasks[1][-1] == datetime.date(2017, 9, 22)
+    assert scheduled_tasks[2][0] == datetime.date(2017, 10, 3)  # not started until milestone starts
+    assert scheduled_tasks[2][-1] == datetime.date(2017, 10, 9)
+    assert scheduled_tasks[3][0] == datetime.date(2017, 9, 18)  # not started until milestone starts
+    assert scheduled_tasks[3][-1] == datetime.date(2017, 9, 22)
