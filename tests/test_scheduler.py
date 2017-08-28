@@ -32,7 +32,7 @@ TEST_MILESTONES = [
 TEST_TASKS = {
     # prioritized tasks
     Task(1, 1, None, TaskEstimates(3, 9, 15), ('user-a', ), 'project-a', 'milestone-a'),
-    Task(3, 2, {1}, TaskEstimates(3, 9, 15), ('user-a', ), 'project-a', 'milestone-b'),
+    Task(3, 2, (1,), TaskEstimates(3, 9, 15), ('user-a', ), 'project-a', 'milestone-b'),
     Task(2, 3, None, TaskEstimates(3, 9, 15), ('user-b', ), 'project-a', 'milestone-a'),
 }
 

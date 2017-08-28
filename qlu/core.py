@@ -136,14 +136,15 @@ class TaskScheduler:
                 warnings.warn('personal_holiday date list not given for: {}'.format(unique_assignee))
             personal_holidays = self.assignee_personal_holidays.get(unique_assignee, [])
             # build work date iterator
-            assignees_date_iterators = AssigneeWorkDateIterator(unique_assignee,
-                                                                self.public_holidays,
-                                                                personal_holidays)
+            assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
+                                                               self.public_holidays,
+                                                               personal_holidays)
+            assignees_date_iterators[unique_assignee] = assignees_date_iterator
 
         # create toposort compatible structure for tasks with dependancies
         dependancies = {}
         for task_id, components in dependant_tasks.items():
-            dependant_task_ids = components.depends_on
+            dependant_task_ids = set(components.depends_on)
             dependancies[task_id] = dependant_task_ids
 
         # get dependancy graph
@@ -170,7 +171,7 @@ class TaskScheduler:
             for assignee, assignee_tasks in groupby(task_details.values(), by_assignee):
                 # process assignee tasks
                 # --> sort by priority, and schedule
-                priority_sorted = sorted(assignee_tasks, key=attrgetter('priority'))
+                priority_sorted = sorted(assignee_tasks, key=attrgetter('absolute_priority'))
                 tasks_to_schedule = len(priority_sorted)
                 newly_scheduled = 0
                 looped_work_date = None
@@ -189,14 +190,14 @@ class TaskScheduler:
                             estimate = main_estimate
 
                         # Check milestone has started before schduling with assignee
-                        if self.assignees_date_iterators[assignee].current_date >= milestone_start_date:
+                        if assignees_date_iterators[assignee].current_date >= milestone_start_date:
                             # schedule task for user
                             for day in range(estimate):
                                 if looped_work_date:
                                     work_date = looped_work_date
                                     looped_work_date = None
                                 else:
-                                    work_date = next(self.assignees_date_iterators[assignee])
+                                    work_date = next(assignees_date_iterators[assignee])
                                 scheduled_tasks[task_id].append(work_date)
                                 newly_scheduled += 1
 
