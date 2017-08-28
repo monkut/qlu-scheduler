@@ -87,7 +87,7 @@ class AssigneeWorkDateIterator:
 
 class TaskScheduler:
 
-    def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays):
+    def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays, start_date=None):
         """
 
         :param tasks: List of Task objects
@@ -102,6 +102,7 @@ class TaskScheduler:
                 raise MissingMilestone(f'Required Milestone definition missing for: {milestone_name}')
         self.public_holidays = public_holidays
         self.assignee_personal_holidays = assignee_personal_holidays
+        self._start_date = start_date
 
     def montecarlo(self, trials=5000):
         """
@@ -116,7 +117,17 @@ class TaskScheduler:
         return results
 
     def schedule(self, is_montecarlo=False):
+        """
+        Schedule tasks given on instantiation
+        :param is_montecarlo: (bool)
+        :return: (dict)
+            { TASK_ID: {
+                    WORK_DATE,
+                    ...
+                ], ...
+            }
 
+        """
         # filter tasks to dependant and non-dependant
         dependant_tasks = {}
         non_dependant_tasks = {}
@@ -138,7 +149,8 @@ class TaskScheduler:
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
                                                                self.public_holidays,
-                                                               personal_holidays)
+                                                               personal_holidays,
+                                                               start_date=self._start_date)
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
 
         # create toposort compatible structure for tasks with dependancies
@@ -154,7 +166,6 @@ class TaskScheduler:
         # --> Tasks in each group are independant, and can be run in parallel (but user specific)
         all_assignee_tasks = defaultdict(list)
         is_initial = True
-        is_montecarlo = True
         scheduled_tasks = defaultdict(list)
         for task_group in dependancy_graph:
             if is_initial:
