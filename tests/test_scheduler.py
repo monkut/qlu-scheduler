@@ -1,6 +1,9 @@
 import datetime
 from qlu.core import TaskScheduler, Task, TaskEstimates, Milestone
 
+
+START_DATE = datetime.datetime(2017, 9, 10).date()
+
 PUBLIC_HOLIDAYS = (
     datetime.date(2017, 9, 23),
     datetime.date(2017, 9, 15),
@@ -31,9 +34,9 @@ TEST_MILESTONES = [
 
 TEST_TASKS = {
     # prioritized tasks
-    Task(1, 1, None, TaskEstimates(3, 9, 15), ('user-a', ), 'project-a', 'milestone-a'),
-    Task(3, 2, (1,), TaskEstimates(3, 9, 15), ('user-a', ), 'project-a', 'milestone-b'),
-    Task(2, 3, None, TaskEstimates(3, 9, 15), ('user-b', ), 'project-a', 'milestone-a'),
+    Task(1, 1, None, TaskEstimates(3, 5, 15), ('user-a', ), 'project-a', 'milestone-a'),
+    Task(3, 2, (1,), TaskEstimates(3, 5, 15), ('user-a', ), 'project-a', 'milestone-b'),
+    Task(2, 3, None, TaskEstimates(3, 5, 15), ('user-b', ), 'project-a', 'milestone-a'),
 }
 
 
@@ -43,7 +46,13 @@ def test_scheduler():
     scheduler = TaskScheduler(tasks=TEST_TASKS,
                               milestones=TEST_MILESTONES,
                               public_holidays=PUBLIC_HOLIDAYS,
-                              assignee_personal_holidays=PERSONAL_HOLIDAYS)
+                              assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                              start_date=START_DATE)
     result = scheduler.schedule()
-    assert result
-    print(result)
+    assert len(result) == len(TEST_TASKS)
+    assert result[1][0] == datetime.date(2017, 9, 18)  # should be next Monday
+    assert result[1][-1] == datetime.date(2017, 9, 22)
+    assert result[2][0] == datetime.date(2017, 10, 3)  # not started until milestone starts
+    assert result[2][-1] == datetime.date(2017, 10, 9)
+    assert result[3][0] == datetime.date(2017, 9, 18)  # not started until milestone starts
+    assert result[3][-1] == datetime.date(2017, 9, 22)
