@@ -8,6 +8,7 @@ from ..core import TaskScheduler, Task, TaskEstimates, Milestone
 
 NO_ESTIMATES = TaskEstimates(0, 0, 0)
 
+
 class GithubIssue:
 
     def __init__(self, issue_json):
