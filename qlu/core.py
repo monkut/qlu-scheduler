@@ -176,8 +176,6 @@ class TaskScheduler:
                 new_task = Task(*new_task_attributes)
                 self.tasks[task_id] = new_task
 
-
-
         if not unique_assignees and not self.phantom_user_count:
             raise TaskNotAssigned(f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}!')
 
