@@ -1,3 +1,8 @@
+"""
+Test using the following command from the repository root:
+
+    python -m pytest tests
+"""
 import datetime
 import pytest
 from qlu.core import TaskScheduler, Task, TaskEstimates, Milestone, TaskNotAssigned
@@ -42,14 +47,16 @@ TEST_TASKS = {
 
 TEST_TASKS_NONE_ASSIGNED = {
     Task(1, 1, None, TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a'),
-    Task(3, 2, (1,), TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-b'),
+    Task(3, 2, (1,), TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a'),
     Task(2, 3, None, TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a'),
 }
 
 
 def test_scheduler():
-    # tasks, milestones, public_holidays, assignee_personal_holidays
-
+    """
+    Test basic scheduler
+    :return:
+    """
     scheduler = TaskScheduler(tasks=TEST_TASKS,
                               milestones=TEST_MILESTONES,
                               public_holidays=PUBLIC_HOLIDAYS,
@@ -63,6 +70,20 @@ def test_scheduler():
     assert scheduled_tasks[2][-1] == datetime.date(2017, 10, 9)
     assert scheduled_tasks[3][0] == datetime.date(2017, 9, 18)  # not started until milestone starts
     assert scheduled_tasks[3][-1] == datetime.date(2017, 9, 22)
+
+
+def test_scheduler_montecarlo():
+    """
+    Test scheduler with montecarlo
+    :return:
+    """
+    scheduler = TaskScheduler(tasks=TEST_TASKS,
+                              milestones=TEST_MILESTONES,
+                              public_holidays=PUBLIC_HOLIDAYS,
+                              assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                              start_date=START_DATE)
+    scheduled_tasks, assignee_tasks = scheduler.schedule(is_montecarlo=True)
+    assert len(scheduled_tasks) == len(TEST_TASKS)
 
 
 def test_phantom_user_assignment():
@@ -83,3 +104,20 @@ def test_phantom_user_assignment():
                               start_date=START_DATE)
     scheduled_tasks, assignee_tasks = scheduler.schedule()
     assert len(scheduled_tasks) == len(TEST_TASKS_NONE_ASSIGNED)
+
+    assert len(assignee_tasks.keys()) == 1
+    expected_phantom_name = 'phantom-0'
+    assert expected_phantom_name in assignee_tasks.keys()
+    max_single_phantom_date = max(sum(scheduled_tasks.values(), []))
+
+    scheduler = TaskScheduler(tasks=TEST_TASKS_NONE_ASSIGNED,
+                              milestones=TEST_MILESTONES,
+                              public_holidays=PUBLIC_HOLIDAYS,
+                              assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                              phantom_user_count=14,
+                              start_date=START_DATE)
+    scheduled_tasks_four, assignee_tasks = scheduler.schedule()
+    assert len(scheduled_tasks) == len(TEST_TASKS_NONE_ASSIGNED)
+    max_four_phantom_date = max(sum(scheduled_tasks_four.values(), []))
+    # 14 phantoms randomly assigned *should* result in a earlier total completion date
+    assert max_four_phantom_date < max_single_phantom_date
