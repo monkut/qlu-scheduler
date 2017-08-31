@@ -138,17 +138,7 @@ class TaskScheduler:
                 ...
             }
         """
-        # filter tasks to dependant and non-dependant
-        dependant_tasks = {}
-        non_dependant_tasks = {}
         unique_assignees = set()
-        for task_id, task_details in self.tasks.items():
-            if task_details.depends_on:
-                dependant_tasks[task_id] = task_details
-            else:
-                non_dependant_tasks[task_id] = task_details
-            for assignee in task_details.assignees:
-                unique_assignees.add(assignee)
 
         # add phantom users if defined
         phantom_usernames = []  # used for assignment
@@ -157,6 +147,39 @@ class TaskScheduler:
                 name = f'phantom-{i}'
                 unique_assignees.add(name)  # used to assure AssigneeWorkDateIterator object is created for phantom user
                 phantom_usernames.append(name)
+
+        # filter tasks to dependant and non-dependant
+        dependant_tasks = {}
+        non_dependant_tasks = {}
+        for task_id, task_details in self.tasks.items():
+            if task_details.depends_on:
+                dependant_tasks[task_id] = task_details
+            else:
+                non_dependant_tasks[task_id] = task_details
+            if task_details.assignees:
+                for assignee in task_details.assignees:
+                    unique_assignees.add(assignee)
+            elif phantom_usernames:
+                # randomly assign
+                assignee = random.choice(phantom_usernames)
+                warnings.warn(f'Assigning Phantom User: {assignee}')
+                # TODO: add assignee to task
+                # Task(2, 3, None, TaskEstimates(3, 5, 15), ('user-b', ), 'project-a', 'milestone-a'),
+                assignee_index = 4
+                new_task_attributes = []
+                for index, existing_value in enumerate(task_details):
+                    if index == assignee_index:
+                        new_task_attributes.append((assignee, ))
+                    else:
+                        new_task_attributes.append(existing_value)
+                # update task
+                new_task = Task(*new_task_attributes)
+                self.tasks[task_id] = new_task
+
+
+
+        if not unique_assignees and not self.phantom_user_count:
+            raise TaskNotAssigned(f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}!')
 
         # build assignee iterators
         assignees_date_iterators = {}
@@ -198,10 +221,6 @@ class TaskScheduler:
             # group tasks by assignnes
             # --> if more than 1 assignee, select 1, and issue warning
             for assignee, assignee_tasks in groupby(task_details.values(), by_assignee):
-                if not assignee:  # TODO: confirm that None is assigned when no assignee identified
-                    # randomly assign
-                    assignee = random.choice(phantom_usernames)
-                    warnings.warn(f'Assigning Phantom User: {assignee}')
                 # process assignee tasks
                 # --> sort by priority, and schedule
                 priority_sorted = sorted(assignee_tasks, key=attrgetter('absolute_priority'))

@@ -1,5 +1,6 @@
 import datetime
-from qlu.core import TaskScheduler, Task, TaskEstimates, Milestone
+import pytest
+from qlu.core import TaskScheduler, Task, TaskEstimates, Milestone, TaskNotAssigned
 
 
 START_DATE = datetime.datetime(2017, 9, 10).date()
@@ -39,6 +40,12 @@ TEST_TASKS = {
     Task(2, 3, None, TaskEstimates(3, 5, 15), ('user-b', ), 'project-a', 'milestone-a'),
 }
 
+TEST_TASKS_NONE_ASSIGNED = {
+    Task(1, 1, None, TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a'),
+    Task(3, 2, (1,), TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-b'),
+    Task(2, 3, None, TaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a'),
+}
+
 
 def test_scheduler():
     # tasks, milestones, public_holidays, assignee_personal_holidays
@@ -56,3 +63,23 @@ def test_scheduler():
     assert scheduled_tasks[2][-1] == datetime.date(2017, 10, 9)
     assert scheduled_tasks[3][0] == datetime.date(2017, 9, 18)  # not started until milestone starts
     assert scheduled_tasks[3][-1] == datetime.date(2017, 9, 22)
+
+
+def test_phantom_user_assignment():
+    with pytest.raises(TaskNotAssigned) as e:
+        scheduler = TaskScheduler(tasks=TEST_TASKS_NONE_ASSIGNED,
+                                  milestones=TEST_MILESTONES,
+                                  public_holidays=PUBLIC_HOLIDAYS,
+                                  assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                                  start_date=START_DATE)
+        scheduled_tasks, assignee_tasks = scheduler.schedule()
+
+    # assign phantom user
+    scheduler = TaskScheduler(tasks=TEST_TASKS_NONE_ASSIGNED,
+                              milestones=TEST_MILESTONES,
+                              public_holidays=PUBLIC_HOLIDAYS,
+                              assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                              phantom_user_count=1,
+                              start_date=START_DATE)
+    scheduled_tasks, assignee_tasks = scheduler.schedule()
+    assert len(scheduled_tasks) == len(TEST_TASKS_NONE_ASSIGNED)
