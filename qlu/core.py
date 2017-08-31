@@ -4,6 +4,7 @@ assignee schedule can define when the
 """
 import datetime
 import warnings
+import random
 from itertools import groupby
 from operator import attrgetter
 from collections import defaultdict, namedtuple
@@ -60,7 +61,7 @@ def by_assignee(data):
 
 class AssigneeWorkDateIterator:
     """
-    For a specific user, iterate the available workdays for that user.
+    For a specific user, iterate through the available workdays for that user.
     Taking into account public_holidays and personal_holidays
     """
 
@@ -72,7 +73,7 @@ class AssigneeWorkDateIterator:
         self.weekdays_off = weekdays_off
         self.start_date = start_date if start_date else datetime.datetime.utcnow().date()
 
-        # decrement in order to return initial start date and use same next function.
+        # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
 
     def __iter__(self):
@@ -87,11 +88,12 @@ class AssigneeWorkDateIterator:
 
 class TaskScheduler:
 
-    def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays, start_date=None):
+    def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays, phantom_user_count=0, start_date=None):
         """
         :param tasks: List of Task objects
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of persional holidays (datetime.date()) keyed by task username
+        :param phantom_user_count: (int) Number of 'phantom' users to assign to assign unassigned tasks to
         :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
         self.tasks = {t.id: t for t in tasks}
@@ -102,6 +104,7 @@ class TaskScheduler:
                 raise MissingMilestone(f'Required Milestone definition missing for: {milestone_name}')
         self.public_holidays = public_holidays
         self.assignee_personal_holidays = assignee_personal_holidays
+        self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
     def montecarlo(self, trials=5000):
@@ -147,6 +150,14 @@ class TaskScheduler:
             for assignee in task_details.assignees:
                 unique_assignees.add(assignee)
 
+        # add phantom users if defined
+        phantom_usernames = []  # used for assignment
+        if self.phantom_user_count:
+            for i in range(self.phantom_user_count):
+                name = f'phantom-{i}'
+                unique_assignees.add(name)  # used to assure AssigneeWorkDateIterator object is created for phantom user
+                phantom_usernames.append(name)
+
         # build assignee iterators
         assignees_date_iterators = {}
         for unique_assignee in unique_assignees:
@@ -187,6 +198,10 @@ class TaskScheduler:
             # group tasks by assignnes
             # --> if more than 1 assignee, select 1, and issue warning
             for assignee, assignee_tasks in groupby(task_details.values(), by_assignee):
+                if not assignee:  # TODO: confirm that None is assigned when no assignee identified
+                    # randomly assign
+                    assignee = random.choice(phantom_usernames)
+                    warnings.warn(f'Assigning Phantom User: {assignee}')
                 # process assignee tasks
                 # --> sort by priority, and schedule
                 priority_sorted = sorted(assignee_tasks, key=attrgetter('absolute_priority'))
@@ -231,6 +246,3 @@ class TaskScheduler:
                     else:
                         break  # All tasks are scheduled
         return scheduled_tasks, all_assignee_tasks
-
-
-
