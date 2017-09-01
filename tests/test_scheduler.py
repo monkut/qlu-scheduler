@@ -82,8 +82,13 @@ def test_scheduler_montecarlo():
                               public_holidays=PUBLIC_HOLIDAYS,
                               assignee_personal_holidays=PERSONAL_HOLIDAYS,
                               start_date=START_DATE)
-    scheduled_tasks, assignee_tasks = scheduler.schedule(is_montecarlo=True)
+    scheduled_tasks, assignee_tasks = scheduler.schedule(is_montecarlo=True)  # single calculation
     assert len(scheduled_tasks) == len(TEST_TASKS)
+
+    distribution, predicted_completion_date = scheduler.montecarlo(1000, q=0.9)
+    assert distribution
+    assert isinstance(predicted_completion_date, datetime.date)
+
 
 
 def test_phantom_user_assignment():
