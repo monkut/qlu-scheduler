@@ -123,8 +123,9 @@ class GithubOrganizationProjectsAdaptor:
                     # priority is based on column position and issue(card) position in the column
                     issue_column_index = 4
                     column = issue[issue_column_index]
+
                     # expect project matches expected format, should have ALL expected columns
-                    assert column in QLU_GITHUB_COLUMNS  # TODO: Add check for project columns prior to processing
+                    assert column in QLU_GITHUB_COLUMNS
 
                     # Only process issues in ACTIVE columns
                     column_priority_index = 15
