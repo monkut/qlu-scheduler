@@ -34,6 +34,10 @@ class MissingMilestone(Exception):
     pass
 
 
+class MilestoneMissingDate(Exception):
+    pass
+
+
 class TaskNotAssigned(Exception):
     pass
 
@@ -97,6 +101,10 @@ class TaskScheduler:
         :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
         self.tasks = {t.id: t for t in tasks}
+        # check that milestones contain expected start, end dates
+        for m in milestones:
+            if not m.start_date or not m.end_date:
+                raise MilestoneMissingDate(f'Milestone must have BOTH start_date and end_date defined: {m}')
         self.milestones = {m.name: m for m in milestones}
         task_milestone_names = [t.milestone for t in self.tasks.values()]
         for milestone_name in task_milestone_names:
@@ -192,7 +200,6 @@ class TaskScheduler:
             else:
                 personal_holidays = []
                 warnings.warn('personal_holidays NOT set!  Assignee holidays will NOT be taken into account!')
-
 
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
