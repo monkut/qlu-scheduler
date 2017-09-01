@@ -7,9 +7,10 @@ import warnings
 import random
 from itertools import groupby
 from operator import attrgetter
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Counter
 from toposort import toposort
 from numpy.random import triangular
+from numpy import percentile
 
 
 SATURDAY = 5
@@ -115,17 +116,26 @@ class TaskScheduler:
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
-    def montecarlo(self, trials=5000):
+    def montecarlo(self, trials=5000, q=0.9):
         """
         Run montecarlo simulation for the number of trials specified
         :param trials: number of trials
+        :param q: percentile at which to retrieve predicted completion date
         :return: (list) [(SCHEDULED_TASKS, ASSIGNEE_TASKS), ...]
         """
-        results = []
+        # TODO: add support for milestones
+        date_ordinals = []
+        completion_date_distribution = Counter()
         for trial in range(trials):
-            result_pair = self.schedule()
-            results.append(result_pair)
-        return results
+            tasks, assignments = self.schedule()
+            # get max date for tasks
+            flattened_dates = sum(tasks.values(), [])  # flatten the list of lists
+            predicted_total_completion_date = max(flattened_dates).toordinal()  # convert to number
+            date_ordinals.append(predicted_total_completion_date)
+            completion_date_distribution[predicted_total_completion_date] += 1
+        ordinal_at_percentile = percentile(date_ordinals, q)
+        date_at_percentile = datetime.datetime.fromordinal(int(ordinal_at_percentile))
+        return completion_date_distribution, date_at_percentile
 
     def schedule(self, is_montecarlo=False):
         """
@@ -171,7 +181,6 @@ class TaskScheduler:
                 # randomly assign
                 assignee = random.choice(phantom_usernames)
                 warnings.warn(f'Assigning Phantom User: {assignee}')
-                # TODO: add assignee to task
                 # Task(2, 3, None, TaskEstimates(3, 5, 15), ('user-b', ), 'project-a', 'milestone-a'),
                 assignee_index = 4
                 new_task_attributes = []
@@ -255,7 +264,7 @@ class TaskScheduler:
                         else:
                             estimate = main_estimate
 
-                        # Check milestone has started before schduling with assignee
+                        # Check milestone has started before scheduling with assignee
                         if assignees_date_iterators[assignee].current_date >= milestone_start_date:
                             # schedule task for user
                             for day in range(estimate):
