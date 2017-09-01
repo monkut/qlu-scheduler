@@ -3,7 +3,7 @@ import os
 import warnings
 import arrow
 from ghorgs.managers import GithubOrganizationManager
-from ..core import TaskScheduler, Task, TaskEstimates, Milestone
+from ..core import TaskScheduler, Task, TaskEstimates, Milestone, MissingMilestone
 
 
 class MissingRequiredEnvironmentVariable(Exception):
@@ -44,18 +44,22 @@ class GithubOrganizationProjectsAdaptor:
     NOTE: Only 1 project supported
     """
 
-    def __init__(self, organization, projects, public_holidays=None, personal_holidays=None, phantom_user_count=0, start_date=None):
+    def __init__(self, organization, projects, milestone_start_dates=None, public_holidays=None, personal_holidays=None, phantom_user_count=0, start_date=None, milestone_start_date_now=False):
         token = os.environ.get('GITHUB_OAUTH_TOKEN', None)
         if not token:
             raise MissingRequiredEnvironmentVariable('Required GITHUB_OAUTH_TOKEN EnVar not set!')
         self.project_manager = GithubOrganizationManager(token, organization)
         self.projects = projects  # organizational projects name
+        self.milestone_start_dates = milestone_start_dates if milestone_start_dates is not None else {}
         self.public_holidays = public_holidays
         self.personal_holidays = personal_holidays
         self.phantom_user_count = phantom_user_count
         self.start_date = start_date
-        self.milestones = set()
-        self.tasks = None
+        self.fallback_milestone_start_date = None
+        if milestone_start_date_now:
+            self.fallback_milestone_start_date = arrow.utcnow().date()
+        self.milestones = {}
+        self._tasks = None
 
     def _collect_tasks(self):
         """
@@ -65,9 +69,14 @@ class GithubOrganizationProjectsAdaptor:
         tasks = []
         issue_state_index = 3
         issue_url_index = 5
+        projects_processed = []
+        available_projects = []
         for project in self.project_manager.projects():
+            available_projects.append(project.name)
             if project.name in self.projects:
                 for issue_object in project.issues():
+                    if not issue_object.milestone:
+                        raise MissingMilestone(f'Milestone not assigned to Issue({issue_object.id}) [{issue_object.url}], all Issues must be assigned to a Milestone!')
                     issue = issue_object.simple
                     issue_url = issue[issue_url_index]
                     if issue[issue_state_index] != 'open':
@@ -120,25 +129,34 @@ class GithubOrganizationProjectsAdaptor:
                     # Only process issues in ACTIVE columns
                     column_priority_index = 15
                     absolute_priority = None
-                    for p, column_name in  enumerate(QLU_GITHUB_ACTIVE_COLUMN_PRIORITY, 1):
+                    for p, column_name in enumerate(QLU_GITHUB_ACTIVE_COLUMN_PRIORITY, 1):
                         base_priority = p * 1000
                         if column in QLU_GITHUB_ACTIVE_COLUMN_PRIORITY:
                             column_priority = issue[column_priority_index]
                             absolute_priority = base_priority + column_priority
 
-                    issue_number_index = 1
-                    identifier = issue[issue_number_index]  # more unique than ID
                     task = Task(absolute_priority,
-                                identifier,
+                                issue_object.id,
                                 issue_object.depends_on,
                                 estimates,
                                 [a.login for a in issue_object.assignees],
                                 issue_object._project.name,
                                 issue_object.milestone.title,
                                 )
-                    self.milestones.add(issue_object.milestone.title)
+                    # Note Github milestone's don't have a start_date component!
+                    milestone_start_date = self.milestone_start_dates.get(issue_object.milestone.title,
+                                                                          self.fallback_milestone_start_date)
+                    github_milestone = Milestone(issue_object.milestone.title,
+                                                 milestone_start_date,
+                                                 arrow.get(issue_object.milestone.due_on).date())
+                    self.milestones[issue_object.milestone.title] = github_milestone
                     tasks.append(task)
+            projects_processed.append(project.name)
+        for p in self.projects:
+            if p not in projects_processed:
+                raise Exception(f'Project "{p}" not in: {available_projects}')
         self._tasks = tasks
+        print('_tasks:', self._tasks)
         return tasks
 
     def _collect_milestones(self):
@@ -146,7 +164,8 @@ class GithubOrganizationProjectsAdaptor:
         Collect Milestones from projects and convert to qlu Milestone objects
         :return:
         """
-        return self.milestones
+        # TODO: properly support milestone handling
+        return self.milestones.values()
 
     def generate_task_scheduler(self):
         tasks = self._collect_tasks()
