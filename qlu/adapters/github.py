@@ -1,4 +1,3 @@
-import json
 import os
 import warnings
 import arrow
@@ -39,7 +38,7 @@ QLU_GITHUB_DEPENDSON_LABEL_PREFIX = 'depends-on'
 class GithubOrganizationProjectsAdaptor:
     """
     Class provides an adaptor for github organization projects to
-    qlu Task/TaskEstiamtes/Milestones/
+    qlu Task/TaskEstimates/Milestones
 
     NOTE: Only 1 project supported
     """
@@ -82,18 +81,8 @@ class GithubOrganizationProjectsAdaptor:
                     if issue[issue_state_index] != 'open':
                         warnings.warn(f'Issue not in open STATE, SKIPPING: {issue_url}')
                         continue
-                    # convert issue to qlu task!
-                    # TaskEstimates = namedtuple('TaskEstimates', ('minimum', 'suggested', 'maximum'))
-                    # Task = namedtuple('Task', (
-                    #     'absolute_priority',
-                    #     'id',
-                    #     'depends_on',
-                    #     'estimates',
-                    #     'assignees',
-                    #     'project',
-                    #     'milestone',
-                    # ))
 
+                    # convert issue to qlu task!
                     # get labels from task to define the estimates
                     # --> See QLU_GITHUB_ESTIMATE_LABEL_PREFIXES for expected labels
                     issue_label_index = 7
