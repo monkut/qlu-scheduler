@@ -6,31 +6,11 @@ from ghorgs.managers import GithubOrganizationManager
 from ..core import TaskScheduler, Task, TaskEstimates, Milestone
 
 
+class MissingRequiredEnvironmentVariable(Exception):
+    pass
+
+
 NO_ESTIMATES = TaskEstimates(0, 0, 0)
-
-
-class GithubIssue:
-
-    def __init__(self, issue_json):
-        self.data = json.loads(issue_json)
-
-    @property
-    def milestone(self):
-        name = self.data['milestone']['url']
-        start_date = None
-        end_date = arrow.get(self.data['milestone']['']).date()
-        return Milestone(name, start_date, end_date)
-
-    @property
-    def task(self):
-        # 'absolute_priority',
-        # 'id',
-        # 'depends_on',
-        # 'estimates',
-        # 'assignees',
-        # 'project',
-        # 'milestone',
-        pass
 
 # these are labels defined by qlu so estimates can be processed
 QLU_GITHUB_ESTIMATE_LABEL_PREFIXES = (
@@ -64,14 +44,18 @@ class GithubOrganizationProjectsAdaptor:
     NOTE: Only 1 project supported
     """
 
-    def __init__(self, organization, project, public_holidays=None, personal_holidays=None, start_date=None):
-        token = os.environ.get('GITHUB_OAUTH_TOKEN', None),
+    def __init__(self, organization, projects, public_holidays=None, personal_holidays=None, phantom_user_count=0, start_date=None):
+        token = os.environ.get('GITHUB_OAUTH_TOKEN', None)
+        if not token:
+            raise MissingRequiredEnvironmentVariable('Required GITHUB_OAUTH_TOKEN EnVar not set!')
         self.project_manager = GithubOrganizationManager(token, organization)
-        self.project = project  # organizational project name
+        self.projects = projects  # organizational projects name
         self.public_holidays = public_holidays
         self.personal_holidays = personal_holidays
+        self.phantom_user_count = phantom_user_count
         self.start_date = start_date
         self.milestones = set()
+        self.tasks = None
 
     def _collect_tasks(self):
         """
@@ -82,7 +66,7 @@ class GithubOrganizationProjectsAdaptor:
         issue_state_index = 3
         issue_url_index = 5
         for project in self.project_manager.projects():
-            if project.name in self.project:
+            if project.name in self.projects:
                 for issue_object in project.issues():
                     issue = issue_object.simple
                     issue_url = issue[issue_url_index]
@@ -140,7 +124,7 @@ class GithubOrganizationProjectsAdaptor:
                         base_priority = p * 1000
                         if column in QLU_GITHUB_ACTIVE_COLUMN_PRIORITY:
                             column_priority = issue[column_priority_index]
-                            absolute_priority = p + column_priority
+                            absolute_priority = base_priority + column_priority
 
                     issue_number_index = 1
                     identifier = issue[issue_number_index]  # more unique than ID
@@ -154,6 +138,7 @@ class GithubOrganizationProjectsAdaptor:
                                 )
                     self.milestones.add(issue_object.milestone.title)
                     tasks.append(task)
+        self._tasks = tasks
         return tasks
 
     def _collect_milestones(self):
@@ -168,7 +153,8 @@ class GithubOrganizationProjectsAdaptor:
         milestones = list(self._collect_milestones())
         scheduler = TaskScheduler(tasks=tasks,
                                   milestones=milestones,
-                                  public_holidays=[],
-                                  assignee_personal_holidays=[],
+                                  public_holidays=self.public_holidays,
+                                  assignee_personal_holidays=self.personal_holidays,
+                                  phantom_user_count=self.phantom_user_count,
                                   start_date=self.start_date)
         return scheduler

@@ -67,8 +67,8 @@ class AssigneeWorkDateIterator:
 
     def __init__(self, username, public_holidays, personal_holidays, weekdays_off=WEEKDAYS_OFF, start_date=None):
         self.username = username
-        self.public_holidays = public_holidays
-        self.personal_holidays = personal_holidays
+        self.public_holidays = public_holidays if public_holidays is not None else []
+        self.personal_holidays = personal_holidays if personal_holidays is not None else []
         self.combined_holidays = tuple(list(self.public_holidays) + list(self.personal_holidays))
         self.weekdays_off = weekdays_off
         self.start_date = start_date if start_date else datetime.datetime.utcnow().date()
@@ -177,14 +177,23 @@ class TaskScheduler:
                 self.tasks[task_id] = new_task
 
         if not unique_assignees and not self.phantom_user_count:
-            raise TaskNotAssigned(f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}!')
+            msg = (f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}! '
+                   f'(TaskScheduler(..., phantom_user_count=1) can be set to a positive integer to simulate assignments)')
+
+            raise TaskNotAssigned(msg)
 
         # build assignee iterators
         assignees_date_iterators = {}
         for unique_assignee in unique_assignees:
-            if unique_assignee not in self.assignee_personal_holidays:
-                warnings.warn('personal_holiday date list not given for: {}'.format(unique_assignee))
-            personal_holidays = self.assignee_personal_holidays.get(unique_assignee, [])
+            if self.assignee_personal_holidays:
+                personal_holidays = self.assignee_personal_holidays.get(unique_assignee, [])
+                if unique_assignee not in self.assignee_personal_holidays:
+                    warnings.warn('personal_holiday date list not given for: {}'.format(unique_assignee))
+            else:
+                personal_holidays = []
+                warnings.warn('personal_holidays NOT set!  Assignee holidays will NOT be taken into account!')
+
+
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
                                                                self.public_holidays,
