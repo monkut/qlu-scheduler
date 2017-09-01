@@ -85,7 +85,7 @@ def test_scheduler_montecarlo():
     scheduled_tasks, assignee_tasks = scheduler.schedule(is_montecarlo=True)  # single calculation
     assert len(scheduled_tasks) == len(TEST_TASKS)
 
-    milestone_distributions, milestone_predicted_completion_dates = scheduler.montecarlo(1000, q=0.9)
+    milestone_distributions, milestone_predicted_completion_dates = scheduler.montecarlo(1000, q=90)
     assert milestone_distributions
 
     for milestone, predicted_completion_date in milestone_predicted_completion_dates.items():

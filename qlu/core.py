@@ -117,11 +117,11 @@ class TaskScheduler:
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
-    def montecarlo(self, trials=5000, q=0.9):
+    def montecarlo(self, trials=5000, q=90):
         """
         Run montecarlo simulation for the number of trials specified
         :param trials: number of trials
-        :param q: percentile at which to retrieve predicted completion date
+        :param q: (int) 0-100, percentile at which to retrieve predicted completion date
         :return: (list) [(SCHEDULED_TASKS, ASSIGNEE_TASKS), ...]
         """
         milestone_completion_dates = defaultdict(list)
@@ -147,7 +147,7 @@ class TaskScheduler:
 
             # process trial milestones
             for milestone, milestone_dates in milestone_completion_dates.items():
-                milestone_completion_date = max(milestone_dates)
+                milestone_completion_date = max(milestone_dates)  # defines when the milestone completes
                 milestone_completion_ordinals[milestone].append(milestone_completion_date.toordinal())
                 milestone_completion_distribution[milestone][milestone_completion_date.isoformat()] += 1
 
