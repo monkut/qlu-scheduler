@@ -85,10 +85,11 @@ def test_scheduler_montecarlo():
     scheduled_tasks, assignee_tasks = scheduler.schedule(is_montecarlo=True)  # single calculation
     assert len(scheduled_tasks) == len(TEST_TASKS)
 
-    distribution, predicted_completion_date = scheduler.montecarlo(1000, q=0.9)
-    assert distribution
-    assert isinstance(predicted_completion_date, datetime.date)
+    milestone_distributions, milestone_predicted_completion_dates = scheduler.montecarlo(1000, q=0.9)
+    assert milestone_distributions
 
+    for milestone, predicted_completion_date in milestone_predicted_completion_dates.items():
+        assert isinstance(predicted_completion_date, datetime.date)
 
 
 def test_phantom_user_assignment():

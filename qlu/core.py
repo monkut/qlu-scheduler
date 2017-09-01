@@ -66,7 +66,7 @@ def by_assignee(data):
 
 class AssigneeWorkDateIterator:
     """
-    For a specific user, iterate through the available workdays for that user.
+    For a specific user, iterate through the available workdays (datetime.date()) for that user.
     Taking into account public_holidays and personal_holidays
     """
 
@@ -97,8 +97,9 @@ class TaskScheduler:
         """
         :param tasks: List of Task objects
         :param milestones: List of Milestone objects
-        :param assignee_personal_holidays: (dict) of persional holidays (datetime.date()) keyed by task username
-        :param phantom_user_count: (int) Number of 'phantom' users to assign to assign unassigned tasks to
+        :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
+        :param phantom_user_count: (int) Number of 'phantom' users to assign unassigned tasks to
+            NOTE: Intended to help with determining how many Resources are needed for the project.
         :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
         self.tasks = {t.id: t for t in tasks}
@@ -123,19 +124,39 @@ class TaskScheduler:
         :param q: percentile at which to retrieve predicted completion date
         :return: (list) [(SCHEDULED_TASKS, ASSIGNEE_TASKS), ...]
         """
-        # TODO: add support for milestones
-        date_ordinals = []
-        completion_date_distribution = Counter()
+        milestone_completion_dates = defaultdict(list)
+        milestone_completion_distribution = defaultdict(Counter)
+        milestone_completion_ordinals = defaultdict(list)
         for trial in range(trials):
-            tasks, assignments = self.schedule()
-            # get max date for tasks
-            flattened_dates = sum(tasks.values(), [])  # flatten the list of lists
-            predicted_total_completion_date = max(flattened_dates).toordinal()  # convert to number
-            date_ordinals.append(predicted_total_completion_date)
-            completion_date_distribution[predicted_total_completion_date] += 1
-        ordinal_at_percentile = percentile(date_ordinals, q)
-        date_at_percentile = datetime.datetime.fromordinal(int(ordinal_at_percentile))
-        return completion_date_distribution, date_at_percentile
+            tasks, assignments = self.schedule(is_montecarlo=True)
+
+            # group by milestone
+            for task_id, dates in tasks.items():
+                task_completion_date = max(dates)
+
+                # find task milestone
+                milestone = None
+                for tasks in assignments.values():
+                    for t in tasks:
+                        if t.id == task_id:
+                            milestone = t.milestone
+                            break
+                    if milestone:
+                        break
+                milestone_completion_dates[milestone].append(task_completion_date)
+
+            # process trial milestones
+            for milestone, milestone_dates in milestone_completion_dates.items():
+                milestone_completion_date = max(milestone_dates)
+                milestone_completion_ordinals[milestone].append(milestone_completion_date.toordinal())
+                milestone_completion_distribution[milestone][milestone_completion_date.isoformat()] += 1
+
+        milestone_date_at_percentile = {}
+        for milestone, completion_ordinals in milestone_completion_ordinals.items():
+            ordinal_at_percentile = percentile(completion_ordinals, q)
+            date_at_percentile = datetime.datetime.fromordinal(int(ordinal_at_percentile))
+            milestone_date_at_percentile[milestone] = date_at_percentile
+        return milestone_completion_distribution, milestone_date_at_percentile
 
     def schedule(self, is_montecarlo=False):
         """
