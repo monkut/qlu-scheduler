@@ -124,6 +124,10 @@ class GithubOrganizationProjectsAdaptor:
                         if column in QLU_GITHUB_ACTIVE_COLUMN_PRIORITY:
                             column_priority = issue[column_priority_index]
                             absolute_priority = base_priority + column_priority
+                    if absolute_priority is None:
+                        warnings.warn('Issue not in Project ACTIVE COLUMN({}), SKIPPING: {}'.format(QLU_GITHUB_ACTIVE_COLUMN_PRIORITY,
+                                                                                                    issue_object.html_url))
+                        continue
 
                     task = Task(absolute_priority,
                                 issue_object.id,
