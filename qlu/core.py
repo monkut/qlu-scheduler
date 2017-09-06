@@ -252,7 +252,7 @@ class TaskScheduler:
         all_assignee_tasks = defaultdict(list)
         is_initial = True
         scheduled_tasks = defaultdict(list)
-        for task_group in dependancy_graph:
+        for task_group_index, task_group in enumerate(dependancy_graph):
             if is_initial:
                 # include non_dependant tasks
                 for task_id in non_dependant_tasks.keys():
@@ -290,6 +290,10 @@ class TaskScheduler:
 
                         # Check milestone has started before scheduling with assignee
                         if assignees_date_iterators[assignee].current_date >= milestone_start_date:
+                            if task_id not in scheduled_tasks:  # make sure it's added only once
+                                # add to all tasks
+                                all_assignee_tasks[assignee].append(task)
+
                             # schedule task for user
                             for day in range(estimate):
                                 if looped_work_date:
@@ -298,10 +302,8 @@ class TaskScheduler:
                                 else:
                                     work_date = next(assignees_date_iterators[assignee])
                                 scheduled_tasks[task_id].append(work_date)
-                                newly_scheduled += 1
+                            newly_scheduled += 1
 
-                            # add to all tasks
-                            all_assignee_tasks[assignee].append(task)
                         else:
                             warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id, milestone_name))
                     # single loop complete,
