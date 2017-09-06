@@ -294,15 +294,15 @@ class TaskScheduler:
                                 # add to all tasks
                                 all_assignee_tasks[assignee].append(task)
 
-                            # schedule task for user
-                            for day in range(estimate):
-                                if looped_work_date:
-                                    work_date = looped_work_date
-                                    looped_work_date = None
-                                else:
-                                    work_date = next(assignees_date_iterators[assignee])
-                                scheduled_tasks[task_id].append(work_date)
-                            newly_scheduled += 1
+                                # schedule task for user
+                                for day in range(estimate):
+                                    if looped_work_date:
+                                        work_date = looped_work_date
+                                        looped_work_date = None
+                                    else:
+                                        work_date = next(assignees_date_iterators[assignee])
+                                    scheduled_tasks[task_id].append(work_date)
+                                newly_scheduled += 1
 
                         else:
                             warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id, milestone_name))
