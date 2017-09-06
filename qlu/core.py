@@ -261,14 +261,17 @@ class TaskScheduler:
 
             # collect task information in current group
             task_details = {task_id: self.tasks[task_id] for task_id in task_group}
+            # sort task_details.values()
+            sorted_task_detail_values = sorted(task_details.values(), key=attrgetter('assignees'))
 
             # group tasks by assignnes
             # --> if more than 1 assignee, select 1, and issue warning
-            for assignee, assignee_tasks in groupby(task_details.values(), by_assignee):
+            for assignee, assignee_tasks in groupby(sorted_task_detail_values, by_assignee):
                 # process assignee tasks
                 # --> sort by priority, and schedule
                 priority_sorted = sorted(assignee_tasks, key=attrgetter('absolute_priority'))
                 tasks_to_schedule = len(priority_sorted)
+
                 newly_scheduled = 0
                 looped_work_date = None
                 while True:
