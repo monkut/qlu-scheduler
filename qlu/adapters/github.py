@@ -102,9 +102,9 @@ class GithubOrganizationProjectsAdaptor:
                         for offset, estimate_type in enumerate(QLU_GITHUB_ESTIMATE_LABEL_PREFIXES, -1):
                             fallback_value = main_estimate
                             if offset < 0:
-                                fallback_value = main_estimate/1.5
+                                fallback_value = main_estimate/1.2  # min
                             elif offset > 0:
-                                fallback_value = main_estimate * 2
+                                fallback_value = main_estimate * 1.6  # max
                             value = parsed_estimates.get(estimate_type, fallback_value)
                             estimate_values.append(value)
                         estimates = TaskEstimates(*estimate_values)
@@ -137,6 +137,7 @@ class GithubOrganizationProjectsAdaptor:
                                 issue_object._project.name,
                                 issue_object.milestone.title,
                                 )
+
                     # Note Github milestone's don't have a start_date component!
                     milestone_start_date = self.milestone_start_dates.get(issue_object.milestone.title,
                                                                           self.fallback_milestone_start_date)
