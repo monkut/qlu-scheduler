@@ -13,11 +13,39 @@ logging.basicConfig(format='%(asctime) [%(level)s]: %(message)s',
 logger = logging.getLogger(__name__)
 
 
-def schedule_projects(org, projects, milestone_start_dates, phantom_user_count, montecarlo_trials=0, percentile=90):
+# TODO set this externally
+HOLIDAYS = (
+    arrow.get('2017-09-18').date(),
+    arrow.get('2017-09-22').date(),
+    arrow.get('2017-10-09').date(),
+    arrow.get('2017-11-03').date(),
+    arrow.get('2017-11-23').date(),
+    arrow.get('2017-12-23').date(),
+    # 2018
+    arrow.get('2018-01-01').date(),
+    arrow.get('2018-01-08').date(),
+    arrow.get('2018-02-11').date(),
+    arrow.get('2018-03-21').date(),
+)
+
+
+def schedule_projects(org, projects, milestone_start_dates, phantom_user_count):
+    adaptor = GithubOrganizationProjectsAdaptor(org,
+                                                projects,
+                                                milestone_start_dates,
+                                                public_holidays=HOLIDAYS,
+                                                phantom_user_count=phantom_user_count)
+    scheduler = adaptor.generate_task_scheduler()
+    scheduled_tasks, all_assignee_tasks = scheduler.schedule()
+    return scheduled_tasks, all_assignee_tasks
+
+
+def perform_montecarlo(org, projects, milestone_start_dates, phantom_user_count, montecarlo_trials=0, percentile=90):
 
     adaptor = GithubOrganizationProjectsAdaptor(org,
                                                 projects,
                                                 milestone_start_dates,
+                                                public_holidays=HOLIDAYS,
                                                 phantom_user_count=phantom_user_count)
     scheduler = adaptor.generate_task_scheduler()
     assert montecarlo_trials > 0  # Currently this script is for simulating schedules
@@ -55,7 +83,7 @@ if __name__ == '__main__':
         logger.setLevel(logging.DEBUG)
 
     if args.montecarlo:
-        logger.info(f'Running ({args.montecarlo}) Monte-Carlo Trials!')
+        logger.info('Running ({}) Monte-Carlo Trials!'.format(args.montecarlo))
 
     if not args.milestone_start_dates or not os.path.exists(os.path.expanduser(args.milestone_start_dates)):
         raise parser.error(f'Missing path to Milestone StartDates Mapping JSON: {args.milestone_start_dates}')
@@ -67,15 +95,39 @@ if __name__ == '__main__':
     for milestone_name, start_date_str in milestone_start_dates_json.items():
         start_date = arrow.get(start_date_str).date()
         milestone_start_dates[milestone_name] = start_date
+    print(milestone_start_dates)
 
-    distributions, completion_estimates = schedule_projects(args.organization,
-                                                            args.projects,
-                                                            milestone_start_dates,
-                                                            args.users,
-                                                            args.montecarlo)
-    import pprint
-    pprint.pprint(distributions)
-    pprint.pprint(completion_estimates)
+    if args.montecarlo and args.montecarlo > 0:
+        distributions, completion_estimates = perform_montecarlo(args.organization,
+                                                                args.projects,
+                                                                milestone_start_dates,
+                                                                args.users,
+                                                                args.montecarlo)
+        import pprint
+        pprint.pprint(distributions)
+        pprint.pprint(completion_estimates)
+    else:
+        estimated_finish_date = None
+        scheduled_tasks, assignments = schedule_projects(args.organization,
+                                                                args.projects,
+                                                                milestone_start_dates,
+                                                                args.users)
+        # output the per user assignments
+        for user, tasks in assignments.items():
+            print(user)
+            for task in tasks:
+                for task_id, dates in scheduled_tasks.items():
+                    if task_id == task.id:
+                        print('\t{}:'.format(task_id, dates))
+                        for d in dates:
+                            print('\t\t{}'.format(d))
+                        if not estimated_finish_date:
+                            estimated_finish_date = d
+                        elif d > estimated_finish_date:
+                            estimated_finish_date = d
+                        break
+        print('Estimated Finish Date: {}'.format(estimated_finish_date))
+
 
 
 
