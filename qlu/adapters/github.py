@@ -1,15 +1,20 @@
+"""
+This is an adaptor for github organization projects.
+It expects that your projects contain the columns defined in QLU_GITHUB_COLUMNS.
+Where, it considers ACTIVE prioritized tasks to in columns defined in QLU_GITHUB_ACTIVE_COLUMN_PRIORITY.
+"""
 import os
 import warnings
 import arrow
 from ghorgs.managers import GithubOrganizationManager
-from ..core import TaskScheduler, Task, TaskEstimates, Milestone, MissingMilestone
+from ..core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, MissingMilestone
 
 
 class MissingRequiredEnvironmentVariable(Exception):
     pass
 
 
-NO_ESTIMATES = TaskEstimates(0, 0, 0)
+NO_ESTIMATES = QluTaskEstimates(0, 0, 0)
 
 # these are labels defined by qlu so estimates can be processed
 QLU_GITHUB_ESTIMATE_LABEL_PREFIXES = (
@@ -33,6 +38,10 @@ QLU_GITHUB_ACTIVE_COLUMN_PRIORITY = (
     'planning',
 )
 QLU_GITHUB_DEPENDSON_LABEL_PREFIX = 'depends-on'
+
+
+class InvalidGithubOrganizationProject(Exception):
+    pass
 
 
 class GithubOrganizationProjectsAdaptor:
@@ -75,11 +84,13 @@ class GithubOrganizationProjectsAdaptor:
             if project.name in self.projects:
                 for issue_object in project.issues():
                     if not issue_object.milestone:
-                        raise MissingMilestone(f'Milestone not assigned to Issue({issue_object.id}) [{issue_object.url}], all Issues must be assigned to a Milestone!')
+                        msg = 'Milestone not assigned to Issue({}) [{}], all Issues must be assigned to a Milestone!'.format(issue_object.id,
+                                                                                                                             issue_object.url)
+                        raise MissingMilestone(msg)
                     issue = issue_object.simple
                     issue_url = issue[issue_url_index]
                     if issue[issue_state_index] != 'open':
-                        warnings.warn(f'Issue not in open STATE, SKIPPING: {issue_url}')
+                        warnings.warn('Issue not in open STATE, SKIPPING: {}'.format(issue_url))
                         continue
 
                     # convert issue to qlu task!
@@ -95,7 +106,7 @@ class GithubOrganizationProjectsAdaptor:
 
                     main_estimate = parsed_estimates.get('estimate', None)
                     if not main_estimate:
-                        warnings.warn(f'Expected "estimate:N" label NOT attached: {issue_url}')
+                        warnings.warn('Expected "estimate:N" label NOT attached: {}'.format(issue_url))
                         estimates = NO_ESTIMATES
                     else:
                         estimate_values = []
@@ -107,7 +118,7 @@ class GithubOrganizationProjectsAdaptor:
                                 fallback_value = main_estimate * 1.6  # max
                             value = parsed_estimates.get(estimate_type, fallback_value)
                             estimate_values.append(value)
-                        estimates = TaskEstimates(*estimate_values)
+                        estimates = QluTaskEstimates(*estimate_values)
 
                     # priority is based on column position and issue(card) position in the column
                     issue_column_index = 4
@@ -129,19 +140,20 @@ class GithubOrganizationProjectsAdaptor:
                                                                                                     issue_object.html_url))
                         continue
 
-                    task = Task(absolute_priority,
-                                issue_object.id,
-                                issue_object.depends_on,
-                                estimates,
-                                [a.login for a in issue_object.assignees],
-                                issue_object._project.name,
-                                issue_object.milestone.title,
-                                )
+                    task = QluTask(
+                        issue_object.id,
+                        absolute_priority,
+                        issue_object.depends_on,
+                        estimates,
+                        [a.login for a in issue_object.assignees],
+                        issue_object._project.name,
+                        issue_object.milestone.title,
+                    )
 
                     # Note Github milestone's don't have a start_date component!
                     milestone_start_date = self.milestone_start_dates.get(issue_object.milestone.title,
                                                                           self.fallback_milestone_start_date)
-                    github_milestone = Milestone(issue_object.milestone.title,
+                    github_milestone = QluMilestone(issue_object.milestone.title,
                                                  milestone_start_date,
                                                  arrow.get(issue_object.milestone.due_on).date())
                     self.milestones[issue_object.milestone.title] = github_milestone
@@ -149,7 +161,7 @@ class GithubOrganizationProjectsAdaptor:
             projects_processed.append(project.name)
         for p in self.projects:
             if p not in projects_processed:
-                raise Exception(f'Project "{p}" not in: {available_projects}')
+                raise InvalidGithubOrganizationProject('Project "{}" not in: {}'.format(p, available_projects))
         self._tasks = tasks
         print('_tasks:', self._tasks)
         return tasks
@@ -165,10 +177,10 @@ class GithubOrganizationProjectsAdaptor:
     def generate_task_scheduler(self):
         tasks = self._collect_tasks()
         milestones = list(self._collect_milestones())
-        scheduler = TaskScheduler(tasks=tasks,
-                                  milestones=milestones,
-                                  public_holidays=self.public_holidays,
-                                  assignee_personal_holidays=self.personal_holidays,
-                                  phantom_user_count=self.phantom_user_count,
-                                  start_date=self.start_date)
+        scheduler = QluTaskScheduler(tasks=tasks,
+                                     milestones=milestones,
+                                     public_holidays=self.public_holidays,
+                                     assignee_personal_holidays=self.personal_holidays,
+                                     phantom_user_count=self.phantom_user_count,
+                                     start_date=self.start_date)
         return scheduler

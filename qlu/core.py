@@ -17,18 +17,8 @@ SATURDAY = 5
 SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
-
-TaskEstimates = namedtuple('TaskEstimates', ('minimum', 'suggested', 'maximum'))
-Task = namedtuple('Task', (
-    'absolute_priority',
-    'id',
-    'depends_on',
-    'estimates',
-    'assignees',
-    'project',
-    'milestone',
-))
-Milestone = namedtuple('Milestone', ('name', 'start_date', 'end_date'))
+QluTaskEstimates = namedtuple('TaskEstimates', ('minimum', 'suggested', 'maximum'))
+QluMilestone = namedtuple('Milestone', ('name', 'start_date', 'end_date'))
 
 
 class MissingMilestone(Exception):
@@ -91,7 +81,69 @@ class AssigneeWorkDateIterator:
         return self.current_date
 
 
-class TaskScheduler:
+class QluTask:
+
+    def __init__(self, id, absolute_priority, depends_on, estimates, assignees, project_id, milestone_id):
+        self.id = id
+        self.absolute_priority = absolute_priority
+        self.depends_on = depends_on
+        assert isinstance(estimates, QluTaskEstimates)
+        self.estimates = estimates
+        self.assignees = assignees
+        self.project_id = project_id
+        self.milestone_id = milestone_id
+        self.scheduled = []
+        self._field_order = (
+            'id',
+            'absolute_priority',
+            'depends_on',
+            'estimates',
+            'assignees',
+            'project_id',
+            'milestone_id',
+        )
+
+    def fields(self):
+        for fieldname in self._field_order:
+            yield getattr(self, fieldname)
+
+    def __getitem__(self, index):
+        fieldname = self._field_order[index]
+        return getattr(self, fieldname)
+
+    def __str__(self):
+        return 'QluTask(id={})'.format(self.id)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class QluSchedule:
+    """
+    Result Schedule object of TaskScheduler call
+    """
+
+    def __init__(self):
+        self._assignee_tasks = defaultdict(list)
+        self._scheduled_tasks = defaultdict(list)
+
+    def tasks(self, assignee=None):
+        """
+        Return scheduled tasks ordered_by assignee, and finish date
+
+        :param assignee: (str) if given, resulting task list will be filtered for the given assignee
+        :return: (list) [Task, Task, ...]
+        """
+        for assigned_user, tasks in self._assignee_tasks.items():
+            if assignee and assigned_user != assignee:
+                continue
+            for task in tasks:
+                # attach scheduled dates to task object
+
+                yield task
+
+
+class QluTaskScheduler:
 
     def __init__(self, tasks, milestones, public_holidays, assignee_personal_holidays, phantom_user_count=0, start_date=None):
         """
@@ -103,15 +155,16 @@ class TaskScheduler:
         :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
         self.tasks = {t.id: t for t in tasks}
+        print('WARNING----G--- {}'.format(self.tasks))
         # check that milestones contain expected start, end dates
         for m in milestones:
             if not m.start_date or not m.end_date:
-                raise MilestoneMissingDate(f'Milestone must have BOTH start_date and end_date defined: {m}')
+                raise MilestoneMissingDate('Milestone must have BOTH start_date and end_date defined: {}'.format(m))
         self.milestones = {m.name: m for m in milestones}
-        task_milestone_names = [t.milestone for t in self.tasks.values()]
+        task_milestone_names = [t.milestone_id for t in self.tasks.values()]
         for milestone_name in task_milestone_names:
             if milestone_name not in self.milestones:
-                raise MissingMilestone(f'Required Milestone definition missing for: {milestone_name}')
+                raise MissingMilestone('Required Milestone definition missing for: {}'.format(milestone_name))
         self.public_holidays = public_holidays
         self.assignee_personal_holidays = assignee_personal_holidays
         self.phantom_user_count = phantom_user_count
@@ -139,7 +192,7 @@ class TaskScheduler:
                 for tasks in assignments.values():
                     for t in tasks:
                         if t.id == task_id:
-                            milestone = t.milestone
+                            milestone = t.milestone_id
                             break
                     if milestone:
                         break
@@ -183,7 +236,7 @@ class TaskScheduler:
         phantom_usernames = []  # used for assignment
         if self.phantom_user_count:
             for i in range(self.phantom_user_count):
-                name = f'phantom-{i}'
+                name = 'phantom-{}'.format(i)
                 unique_assignees.add(name)  # used to assure AssigneeWorkDateIterator object is created for phantom user
                 phantom_usernames.append(name)
 
@@ -201,22 +254,22 @@ class TaskScheduler:
             elif phantom_usernames:
                 # randomly assign
                 assignee = random.choice(phantom_usernames)
-                warnings.warn(f'Assigning Phantom User: {assignee}')
+                warnings.warn('Assigning Phantom User: {}'.format(assignee))
                 # Task(2, 3, None, TaskEstimates(3, 5, 15), ('user-b', ), 'project-a', 'milestone-a'),
                 assignee_index = 4
                 new_task_attributes = []
-                for index, existing_value in enumerate(task_details):
+                for index, existing_value in enumerate(task_details.fields()):
                     if index == assignee_index:
                         new_task_attributes.append((assignee, ))
                     else:
                         new_task_attributes.append(existing_value)
                 # update task
-                new_task = Task(*new_task_attributes)
+                new_task = QluTask(*new_task_attributes)
                 self.tasks[task_id] = new_task
 
         if not unique_assignees and not self.phantom_user_count:
-            msg = (f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}! '
-                   f'(TaskScheduler(..., phantom_user_count=1) can be set to a positive integer to simulate assignments)')
+            msg = ('Tasks not assigned and phantom_user_count == {}! '
+                   '(TaskScheduler(..., phantom_user_count=1) can be set to a positive integer to simulate assignments)').format(self.phantom_user_count)
 
             raise TaskNotAssigned(msg)
 
@@ -264,7 +317,7 @@ class TaskScheduler:
             # sort task_details.values()
             sorted_task_detail_values = sorted(task_details.values(), key=attrgetter('assignees'))
 
-            # group tasks by assignnes
+            # group tasks by assignees
             # --> if more than 1 assignee, select 1, and issue warning
             for assignee, assignee_tasks in groupby(sorted_task_detail_values, by_assignee):
                 # process assignee tasks
@@ -277,8 +330,8 @@ class TaskScheduler:
                 while True:
                     for task in priority_sorted:
                         task_id = task.id
-                        milestone_name = task.milestone
-                        _, milestone_start_date, milestone_end_date = self.milestones[milestone_name]
+                        milestone_id = task.milestone_id
+                        _, milestone_start_date, milestone_end_date = self.milestones[milestone_id]
                         min_estimate, main_estimate, max_estimate = task.estimates
                         if is_montecarlo:
                             # get random number using triangular distribution
@@ -305,7 +358,8 @@ class TaskScheduler:
                                 newly_scheduled += 1
 
                         else:
-                            warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id, milestone_name))
+                            warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id,
+                                                                                                     milestone_id))
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if newly_scheduled < tasks_to_schedule:

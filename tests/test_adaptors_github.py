@@ -1,6 +1,4 @@
 import datetime
-import pytest
-from qlu.core import Task, TaskEstimates, Milestone, TaskNotAssigned
 from qlu.adapters.github import GithubOrganizationProjectsAdaptor
 
 PUBLIC_HOLIDAYS = (
