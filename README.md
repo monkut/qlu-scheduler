@@ -6,27 +6,31 @@ given project will finish on time.
 
 It uses the following key components to schedule a project:
 
-- Project
+- Project-ID
+    - Identifies a specific Project
 
-- Milestone
+- QluMilestone (`qlu.core.QluMilestone`)
+    - Defines a specific Milestone with start/end dates
 
-- Task
+- QluTask (`qlu.core.QluTask`)
+    - Defines a given task with associated Project, (optional) Milestone, (optional) Assignee, and QluTaskEstimates
 
-- TaskEstimate
+- QluTaskEstimate (`qlu.core.QluTaskEstimate`)
+    - Defines the min, expected, and max estimate days needed for completion of a task
 
 - Assignee
+    - Defines a specific assignee to which a task is assigned and performed by.
 
 
 Sample Instantiation & Usage:
 
 ```python
-scheduler = TaskScheduler(tasks=TEST_TASKS_NONE_ASSIGNED,
-                          milestones=TEST_MILESTONES,
+scheduler = TaskScheduler(milestones=TEST_MILESTONES,
                           public_holidays=PUBLIC_HOLIDAYS,
                           assignee_personal_holidays=PERSONAL_HOLIDAYS,
                           phantom_user_count=14,
                           start_date=START_DATE)
-scheduled_tasks_four, assignee_tasks = scheduler.schedule()
+result_schedule = scheduler.schedule(TASKS)
 ```
 
 ## Why not just auto-assign tasks?
@@ -42,9 +46,9 @@ and determine how probable it is that the project will finish
 
 The following components are used for `qlu scheduling`:
 
-- Tasks
+- QluTasks
 
-- Milestones (*optional*)
+- QluMilestones (*optional*)
 
 - Pubic Holidays (*optional*)
 
@@ -54,13 +58,13 @@ The following components are used for `qlu scheduling`:
 
 - Start Date
 
-### Tasks
+### QluTasks
 
-Tasks define a specific amount of work.
+QluTasks define a specific amount of work.
 A task may be linked to a *milestone*.  If linked to a milestone a task will *NOT* be assigned *until* the milestone *start-date* is reached.
 
 
-### Milestones
+### QluMilestones
 
 (*optional*)
 

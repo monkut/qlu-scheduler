@@ -23,8 +23,7 @@ def test_github():
                                                 phantom_user_count=1,
                                                 milestone_start_date_now=True)
     scheduler = adaptor.generate_task_scheduler()
-    scheduled_tasks, assignee_tasks = scheduler.schedule()
+    schedule = scheduler.schedule()
     assert len(adaptor._tasks) > 0
-    assert scheduled_tasks
-    assert assignee_tasks
-    assert len(scheduled_tasks) == len(adaptor._tasks)
+    assert schedule.tasks*()
+    assert len(list(schedule.tasks())) == len(adaptor._tasks)

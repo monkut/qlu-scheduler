@@ -5,9 +5,10 @@ assignee schedule can define when the
 import datetime
 import warnings
 import random
+from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView
 from functools import lru_cache
 from itertools import groupby
-from operator import attrgetter, itemgetter
+from operator import attrgetter
 from collections import defaultdict, namedtuple, Counter
 from toposort import toposort
 from numpy.random import triangular
@@ -19,7 +20,7 @@ SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
 QluTaskEstimates = namedtuple('TaskEstimates', ('minimum', 'suggested', 'maximum'))
-QluMilestone = namedtuple('Milestone', ('name', 'start_date', 'end_date'))
+QluMilestone = namedtuple('Milestone', ('id', 'start_date', 'end_date'))
 
 
 class MissingMilestone(Exception):
@@ -40,7 +41,7 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username, public_holidays, personal_holidays, weekdays_off=WEEKDAYS_OFF, start_date=None):
+    def __init__(self, username: str, public_holidays: List[datetime.date], personal_holidays: List[datetime.date], weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
         self.username = username
         self.public_holidays = public_holidays if public_holidays is not None else []
         self.personal_holidays = personal_holidays if personal_holidays is not None else []
@@ -54,7 +55,7 @@ class AssigneeWorkDateIterator:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> datetime.date:
         self.current_date += datetime.timedelta(days=1)
         while self.current_date.weekday() in self.weekdays_off or self.current_date in self.combined_holidays:
             self.current_date += datetime.timedelta(days=1)
@@ -62,7 +63,7 @@ class AssigneeWorkDateIterator:
 
 
 class QluTask:
-    def __init__(self, id, absolute_priority, depends_on, estimates, assignee, project_id, milestone_id):
+    def __init__(self, id: Any, absolute_priority, depends_on, estimates, assignee, project_id, milestone_id):
         self.id = id
         self.absolute_priority = absolute_priority
         self.depends_on = depends_on
@@ -84,15 +85,15 @@ class QluTask:
         )
 
     @property
-    def start_date(self):
+    def start_date(self) -> Optional[datetime.date]:
         return self.scheduled_dates[0] if self.scheduled_dates else None
 
     @property
-    def end_date(self):
+    def end_date(self) -> Optional[datetime.date]:
         return self.scheduled_dates[-1] if self.scheduled_dates else None
 
     @property
-    def is_scheduled(self):
+    def is_scheduled(self) -> bool:
         result = False
         if self.scheduled_dates:
             result = True
@@ -110,17 +111,17 @@ class QluTask:
         self._iter_pos += 1
         return element
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Any:
         fieldname = self._field_order[index]
         return getattr(self, fieldname)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'QluTask(id={}, project_id={}, milestone_id={}, assignee={})'.format(self.id,
                                                                                     self.project_id,
                                                                                     self.milestone_id,
                                                                                     self.assignee)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 
@@ -129,22 +130,21 @@ class QluSchedule:
     Result Schedule object of TaskScheduler call
     """
 
-    def __init__(self, scheduled_tasks, assignee_tasks):
+    def __init__(self, scheduled_tasks: List[QluTask], assignee_tasks: Dict[str, QluTask]):
         assert all(t.is_scheduled for t in scheduled_tasks)  # expect that all tasks are scheduled
         self._scheduled_tasks = scheduled_tasks
         self._assignee_keyed_tasks = assignee_tasks
 
-    def milestone_tasks(self):
+    def milestone_tasks(self) -> Generator:
         milestone_id_sorted = sorted(self._scheduled_tasks, key=attrgetter('milestone_id'))
         for milestone_id, tasks in groupby(milestone_id_sorted, attrgetter('milestone_id')):
             yield milestone_id, list(tasks)
 
-    def tasks(self, assignee=None):
+    def tasks(self, assignee: str=None) -> List[QluTask]:
         """
         Return scheduled tasks ordered_by and finish date
 
-        :param assignee: (str) if given, resulting task list will be filtered for the given assignee
-        :return: (list) [Task, Task, ...]
+        :param assignee: if given, resulting task list will be filtered for the given assignee
         """
         all_tasks = []
         for assigned_user, tasks in self._assignee_keyed_tasks.items():
@@ -153,23 +153,23 @@ class QluSchedule:
             all_tasks.extend(tasks)
         return sorted(all_tasks, key=attrgetter('end_date'))
 
-    def assignees(self):
+    def assignees(self) -> KeysView:
         return self._assignee_keyed_tasks.keys()
 
     @lru_cache(maxsize=25)
-    def final_task(self, assignee=None):
+    def final_task(self, assignee: str=None) -> QluTask:
         tasks = self.tasks(assignee)
         final_task = max(tasks, key=attrgetter('end_date'))
         return final_task
 
-    def final_date(self, assignee=None):
+    def final_date(self, assignee: str=None) -> datetime.date:
         task = self.final_task(assignee)
         return task.end_date
 
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones, public_holidays, assignee_personal_holidays, phantom_user_count=0, start_date=None):
+    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date], assignee_personal_holidays: List[datetime.date], phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
@@ -181,25 +181,22 @@ class QluTaskScheduler:
         for m in milestones:
             if not m.start_date or not m.end_date:
                 raise MilestoneMissingDate('Milestone must have BOTH start_date and end_date defined: {}'.format(m))
-        self.milestones = {m.name: m for m in milestones}
+        self.id_keyed_milestones = {m.id: m for m in milestones}
         self.public_holidays = public_holidays
         self.assignee_personal_holidays = assignee_personal_holidays
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
-    def montecarlo(self, tasks, trials=5000, q=90):
+    def montecarlo(self, tasks: List[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[str, Counter], Dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified
-        :param tasks: (list) list of QluTask objects to run montecarlo scheduling on
+        :param tasks: list of QluTask objects to run montecarlo scheduling on
         :param trials: number of trials
-        :param q: (int) 0-100, percentile at which to retrieve predicted completion date
-        :return: (list) [(SCHEDULED_TASKS, ASSIGNEE_TASKS), ...]
+        :param q: 0-100, percentile at which to retrieve predicted completion date
         """
         milestone_completion_distribution = defaultdict(Counter)
         milestone_completion_ordinals = defaultdict(list)
         for trial in range(trials):
-            # debug
-            print('trial: {}'.format(trial))
             schedule = self.schedule(tasks, is_montecarlo=True)
             for milestone, milestone_tasks in schedule.milestone_tasks():
                 milestone_completion_date = max(task.end_date for task in milestone_tasks)
@@ -213,11 +210,11 @@ class QluTaskScheduler:
             milestone_date_at_percentile[milestone] = date_at_percentile
         return milestone_completion_distribution, milestone_date_at_percentile
 
-    def schedule(self, tasks, is_montecarlo=False):
+    def schedule(self, tasks: List[QluTask], is_montecarlo: bool=False) -> QluSchedule:
         """
         Schedule tasks given on instantiation
-        :param is_montecarlo: (bool) If True, random value selected using triangular distribution
-        :return: (QluSchedule Object)
+        :param tasks: List of QluTasks
+        :param is_montecarlo: If True, random value selected using triangular distribution
         """
         unique_assignees = set()
         id_keyed_tasks = {}
@@ -228,10 +225,10 @@ class QluTaskScheduler:
             id_keyed_tasks[t.id] = t
 
         # perform milestone check
-        task_milestone_names = [t.milestone_id for t in id_keyed_tasks.values()]
-        for milestone_name in task_milestone_names:
-            if milestone_name not in self.milestones:
-                raise MissingMilestone('Required Milestone definition missing for: {}'.format(milestone_name))
+        task_milestone_ids = [t.milestone_id for t in id_keyed_tasks.values()]
+        for milestone_id in task_milestone_ids:
+            if milestone_id not in self.id_keyed_milestones:
+                raise MissingMilestone('Required Milestone definition missing for: {}'.format(milestone_id))
 
         # add phantom users if defined
         phantom_usernames = []  # used for assignment
@@ -329,7 +326,7 @@ class QluTaskScheduler:
                     for task in priority_sorted:
                         task_id = task.id
                         milestone_id = task.milestone_id
-                        _, milestone_start_date, milestone_end_date = self.milestones[milestone_id]
+                        _, milestone_start_date, milestone_end_date = self.id_keyed_milestones[milestone_id]
                         min_estimate, main_estimate, max_estimate = task.estimates
                         if is_montecarlo:
                             # get random number using triangular distribution
