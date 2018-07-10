@@ -171,7 +171,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date]=None, assignee_personal_holidays: Dict[str, datetime.date]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: List[QluMilestone], public_holidays: Iterable[datetime.date]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
@@ -212,7 +212,7 @@ class QluTaskScheduler:
             milestone_date_at_percentile[milestone] = date_at_percentile
         return milestone_completion_distribution, milestone_date_at_percentile
 
-    def schedule(self, tasks: List[QluTask], is_montecarlo: bool=False) -> QluSchedule:
+    def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool=False) -> QluSchedule:
         """
         Schedule tasks given on instantiation
         :param tasks: List of QluTasks
