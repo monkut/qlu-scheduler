@@ -171,7 +171,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date], assignee_personal_holidays: List[datetime.date], phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date]=None, assignee_personal_holidays: List[datetime.date]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
