@@ -227,7 +227,7 @@ class QluTaskScheduler:
             id_keyed_tasks[t.id] = t
 
         # perform milestone check
-        task_milestone_ids = [t.milestone_id for t in id_keyed_tasks.values()]
+        task_milestone_ids = [t.milestone_id for t in id_keyed_tasks.values() if t.milestone_id]
         for milestone_id in task_milestone_ids:
             if milestone_id not in self.id_keyed_milestones:
                 raise MissingMilestone('Required Milestone definition missing for: {}'.format(milestone_id))
