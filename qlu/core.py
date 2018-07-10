@@ -218,6 +218,8 @@ class QluTaskScheduler:
         :param tasks: List of QluTasks
         :param is_montecarlo: If True, random value selected using triangular distribution
         """
+        if not tasks:
+            raise ValueError('Expected argument value not valid (tasks): {}'.format(tasks))
         unique_assignees = set()
         id_keyed_tasks = {}
         for t in tasks:
