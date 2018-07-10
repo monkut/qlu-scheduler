@@ -21,6 +21,7 @@ WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
 QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
 QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
+QluProject = namedtuple('QluProject', ('id', 'start_date', 'end_date'))
 
 
 class MissingMilestone(Exception):
@@ -132,7 +133,7 @@ class QluSchedule:
     Result Schedule object of TaskScheduler call
     """
 
-    def __init__(self, scheduled_tasks: List[QluTask], assignee_tasks: Dict[str, QluTask]):
+    def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: Dict[Any, List[QluTask]]):
         assert all(t.is_scheduled for t in scheduled_tasks)  # expect that all tasks are scheduled
         self._scheduled_tasks = scheduled_tasks
         self._assignee_keyed_tasks = assignee_tasks
@@ -189,7 +190,7 @@ class QluTaskScheduler:
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
-    def montecarlo(self, tasks: List[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[str, Counter], Dict[str, datetime.date]]:
+    def montecarlo(self, tasks: Iterable[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified
         :param tasks: list of QluTask objects to run montecarlo scheduling on
@@ -355,8 +356,8 @@ class QluTaskScheduler:
                                 assignee_scheduled_task_count += 1
 
                         else:
-                            warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id,
-                                                                                                     milestone_id))
+                            warnings.warn('NOTICE -- QluTask({}) QluMilestone({}) not yet started!'.format(task_id,
+                                                                                                           milestone_id))
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if assignee_scheduled_task_count < assignee_task_count:
