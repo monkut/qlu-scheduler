@@ -5,7 +5,7 @@ assignee schedule can define when the task IS started.
 import datetime
 import warnings
 import random
-from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView
+from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter
@@ -41,7 +41,7 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username: str, public_holidays: List[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
+    def __init__(self, username: str, public_holidays: Iterable[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
         self.username = username
         self.public_holidays = public_holidays if public_holidays is not None else []
         self.personal_holidays = personal_holidays if personal_holidays is not None else []
@@ -132,7 +132,7 @@ class QluSchedule:
     Result Schedule object of TaskScheduler call
     """
 
-    def __init__(self, scheduled_tasks: List[QluTask], assignee_tasks: Dict[str, QluTask]):
+    def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: Dict[Any, List[QluTask]]):
         assert all(t.is_scheduled for t in scheduled_tasks)  # expect that all tasks are scheduled
         self._scheduled_tasks = scheduled_tasks
         self._assignee_keyed_tasks = assignee_tasks
@@ -171,7 +171,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date]=None, assignee_personal_holidays: List[datetime.date]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: Iterable[QluMilestone], public_holidays: Iterable[datetime.date]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
@@ -189,7 +189,7 @@ class QluTaskScheduler:
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
 
-    def montecarlo(self, tasks: List[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[str, Counter], Dict[str, datetime.date]]:
+    def montecarlo(self, tasks: Iterable[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified
         :param tasks: list of QluTask objects to run montecarlo scheduling on
@@ -212,7 +212,7 @@ class QluTaskScheduler:
             milestone_date_at_percentile[milestone] = date_at_percentile
         return milestone_completion_distribution, milestone_date_at_percentile
 
-    def schedule(self, tasks: List[QluTask], is_montecarlo: bool=False) -> QluSchedule:
+    def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool=False) -> QluSchedule:
         """
         Schedule tasks given on instantiation
         :param tasks: List of QluTasks
@@ -296,19 +296,21 @@ class QluTaskScheduler:
             dependant_task_ids = set(components.depends_on)
             dependencies[task_id] = dependant_task_ids
 
-        # get dependancy graph
-        dependency_graph = toposort(dependencies)
+        # get dependency graph
+        dependency_graph = list(toposort(dependencies))
 
+        # update with non_dependant tasks
+        if dependency_graph:
+            # include non_dependant tasks to existing first group
+            task_group = dependency_graph[0]
+            for task_id in non_dependant_tasks.keys():
+                task_group.add(task_id)
+        else:
+            dependency_graph = [{task_id for task_id in non_dependant_tasks.keys()}]
         # group tasks by assignee
         # --> Tasks in each group are independent, and can be run in parallel (but user specific)
         all_assignee_tasks = defaultdict(list)
-        is_initial = True
         for task_group_index, task_group in enumerate(dependency_graph):
-            if is_initial:
-                # include non_dependant tasks
-                for task_id in non_dependant_tasks.keys():
-                    task_group.add(task_id)
-                is_initial = False
 
             # collect task information in current group
             task_details = {task_id: id_keyed_tasks[task_id] for task_id in task_group}
@@ -355,8 +357,8 @@ class QluTaskScheduler:
                                 assignee_scheduled_task_count += 1
 
                         else:
-                            warnings.warn('NOTICE -- Task({}) milestone({}) not yet started!'.format(task_id,
-                                                                                                     milestone_id))
+                            warnings.warn('NOTICE -- QluTask({}) QluMilestone({}) not yet started!'.format(task_id,
+                                                                                                           milestone_id))
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if assignee_scheduled_task_count < assignee_task_count:
