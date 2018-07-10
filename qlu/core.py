@@ -5,7 +5,7 @@ assignee schedule can define when the task IS started.
 import datetime
 import warnings
 import random
-from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView
+from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter
@@ -41,7 +41,7 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username: str, public_holidays: List[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
+    def __init__(self, username: str, public_holidays: Iterable[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
         self.username = username
         self.public_holidays = public_holidays if public_holidays is not None else []
         self.personal_holidays = personal_holidays if personal_holidays is not None else []
@@ -171,7 +171,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date]=None, assignee_personal_holidays: List[datetime.date]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: List[QluMilestone], public_holidays: List[datetime.date]=None, assignee_personal_holidays: Dict[str, datetime.date]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
