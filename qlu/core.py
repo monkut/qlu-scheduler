@@ -41,7 +41,7 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username: str, public_holidays: List[datetime.date], personal_holidays: List[datetime.date], weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
+    def __init__(self, username: str, public_holidays: List[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
         self.username = username
         self.public_holidays = public_holidays if public_holidays is not None else []
         self.personal_holidays = personal_holidays if personal_holidays is not None else []
