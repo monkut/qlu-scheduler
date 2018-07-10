@@ -21,7 +21,6 @@ WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
 QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
 QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
-QluProject = namedtuple('QluProject', ('id', 'start_date', 'end_date'))
 
 
 class MissingMilestone(Exception):
@@ -172,7 +171,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: List[QluMilestone], public_holidays: Iterable[datetime.date]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: Iterable[QluMilestone], public_holidays: Iterable[datetime.date]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
@@ -297,7 +296,7 @@ class QluTaskScheduler:
             dependant_task_ids = set(components.depends_on)
             dependencies[task_id] = dependant_task_ids
 
-        # get dependancy graph
+        # get dependency graph
         dependency_graph = toposort(dependencies)
 
         # group tasks by assignee
