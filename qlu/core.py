@@ -297,18 +297,20 @@ class QluTaskScheduler:
             dependencies[task_id] = dependant_task_ids
 
         # get dependency graph
-        dependency_graph = toposort(dependencies)
+        dependency_graph = list(toposort(dependencies))
 
+        # update with non_dependant tasks
+        if dependency_graph:
+            # include non_dependant tasks to existing first group
+            task_group = dependency_graph[0]
+            for task_id in non_dependant_tasks.keys():
+                task_group.add(task_id)
+        else:
+            dependency_graph = [{task_id for task_id in non_dependant_tasks.keys()}]
         # group tasks by assignee
         # --> Tasks in each group are independent, and can be run in parallel (but user specific)
         all_assignee_tasks = defaultdict(list)
-        is_initial = True
         for task_group_index, task_group in enumerate(dependency_graph):
-            if is_initial:
-                # include non_dependant tasks
-                for task_id in non_dependant_tasks.keys():
-                    task_group.add(task_id)
-                is_initial = False
 
             # collect task information in current group
             task_details = {task_id: id_keyed_tasks[task_id] for task_id in task_group}
