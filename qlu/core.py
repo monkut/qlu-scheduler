@@ -1,6 +1,6 @@
 """
 Milestone defines when the task CAN start
-assignee schedule can define when the
+assignee schedule can define when the task IS started.
 """
 import datetime
 import warnings
@@ -63,26 +63,28 @@ class AssigneeWorkDateIterator:
 
 
 class QluTask:
-    def __init__(self, id: Any, absolute_priority, depends_on, estimates, assignee, project_id, milestone_id):
+    
+    _field_order = (
+                'id',
+                'absolute_priority',
+                'depends_on',
+                'estimates',
+                'assignee',
+                'project_id',
+                'milestone_id',
+            )    
+    
+    def __init__(self, id: Any, absolute_priority, estimates, assignee, project_id, milestone_id, depends_on: str=None):
         self.id = id
         self.absolute_priority = absolute_priority
-        self.depends_on = depends_on
         assert isinstance(estimates, QluTaskEstimates)
         self.estimates = estimates
         self.assignee = assignee
         self.project_id = project_id
         self.milestone_id = milestone_id
+        self.depends_on = depends_on
         self.scheduled_dates = []
         self._iter_pos = 0
-        self._field_order = (
-            'id',
-            'absolute_priority',
-            'depends_on',
-            'estimates',
-            'assignee',
-            'project_id',
-            'milestone_id',
-        )
 
     @property
     def start_date(self) -> Optional[datetime.date]:
