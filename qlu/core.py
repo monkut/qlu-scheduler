@@ -19,7 +19,7 @@ SATURDAY = 5
 SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
-QluTaskEstimates = namedtuple('TaskEstimates', ('minimum', 'suggested', 'maximum'))
+QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
 QluMilestone = namedtuple('Milestone', ('id', 'start_date', 'end_date'))
 
 
