@@ -20,7 +20,7 @@ SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
 QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
-QluMilestone = namedtuple('Milestone', ('id', 'start_date', 'end_date'))
+QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
 
 
 class MissingMilestone(Exception):
