@@ -1,5 +1,7 @@
 # qlu-scheduler README
 
+[![CircleCI](https://circleci.com/gh/monkut/qlu-scheduler/tree/master.svg?style=svg)](https://circleci.com/gh/monkut/qlu-scheduler/tree/master)
+
 This project is an attempt to automate much of the manual work of scheduling and tracking 
 a software development project.  In addtion, it provides monte-carlo simulation of task schedule delays, enabling you to determine how probable a
 given project will finish on time.
