@@ -1,5 +1,5 @@
 check:
-	flake8 --max-line-length 130 --max-complexity 10 qlu/
+	flake8 --max-line-length 140 --max-complexity 10 qlu/
 	pydocstyle qlu/
 
 pylint:

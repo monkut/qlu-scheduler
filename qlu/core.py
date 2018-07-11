@@ -11,8 +11,8 @@ from itertools import groupby
 from operator import attrgetter
 from collections import defaultdict, namedtuple, Counter
 from toposort import toposort
-from pandas.tseries.holiday import AbstractHolidayCalendar, MO
-from pandas.tseries.offsets import CustomBusinessDay, DateOffset
+from pandas.tseries.holiday import AbstractHolidayCalendar
+from pandas.tseries.offsets import CustomBusinessDay
 from numpy.random import triangular
 from numpy import percentile
 
@@ -43,7 +43,10 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username: str, holiday_calendar: Type[AbstractHolidayCalendar]=None, personal_holidays: List[datetime.date]=None, start_date: Optional[datetime.date]=None):
+    def __init__(self, username: str,
+                 holiday_calendar: Type[AbstractHolidayCalendar]=None,
+                 personal_holidays: List[datetime.date]=None,
+                 start_date: Optional[datetime.date]=None):
         self.username = username
         self.start_date = start_date if start_date else datetime.datetime.utcnow().date()
 
@@ -67,7 +70,7 @@ class AssigneeWorkDateIterator:
 
 
 class QluTask:
-    
+
     _field_order = (
                 'id',
                 'absolute_priority',
@@ -76,8 +79,8 @@ class QluTask:
                 'project_id',
                 'milestone_id',
                 'depends_on',
-            )    
-    
+    )
+
     def __init__(self, id: Any, absolute_priority, estimates, assignee, project_id, milestone_id, depends_on: Tuple[int]=None):
         self.id = id
         self.absolute_priority = absolute_priority
@@ -176,9 +179,14 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: Iterable[QluMilestone], holiday_calendar: Type[AbstractHolidayCalendar]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: Iterable[QluMilestone],
+                 holiday_calendar: Type[AbstractHolidayCalendar]=None,
+                 assignee_personal_holidays: Dict[str, List[datetime.date]]=None,
+                 phantom_user_count: int=0,
+                 start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
+        :param holiday_calendar: Calendar object for determining work days
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
         :param phantom_user_count: (int) Number of 'phantom' users to assign unassigned tasks to
             NOTE: Intended to help with determining how many Resources are needed for the project.
@@ -196,7 +204,8 @@ class QluTaskScheduler:
 
     def montecarlo(self, tasks: Iterable[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
         """
-        Run montecarlo simulation for the number of trials specified
+        Run montecarlo simulation for the number of trials specified.
+
         :param tasks: list of QluTask objects to run montecarlo scheduling on
         :param trials: number of trials
         :param q: 0-100, percentile at which to retrieve predicted completion date
@@ -219,7 +228,8 @@ class QluTaskScheduler:
 
     def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool=False) -> QluSchedule:
         """
-        Schedule tasks given on instantiation
+        Schedule tasks given on instantiation.
+
         :param tasks: List of QluTasks
         :param is_montecarlo: If True, random value selected using triangular distribution
         """
@@ -274,8 +284,8 @@ class QluTaskScheduler:
                 id_keyed_tasks[task_id] = new_task
 
         if not unique_assignees and not self.phantom_user_count:
-            msg = ('Tasks not assigned and phantom_user_count == {}! '
-                   '(TaskScheduler(..., phantom_user_count=1) can be set to a positive integer to simulate assignments)').format(self.phantom_user_count)
+            msg = (f'Tasks not assigned and phantom_user_count == {self.phantom_user_count}! '
+                   '(TaskScheduler(..., phantom_user_count=1) can be set to a positive integer to simulate assignments)')
 
             raise TaskNotAssigned(msg)
 
