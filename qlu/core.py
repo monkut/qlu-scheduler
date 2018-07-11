@@ -5,12 +5,14 @@ assignee schedule can define when the task IS started.
 import datetime
 import warnings
 import random
-from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable
+from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter
 from collections import defaultdict, namedtuple, Counter
 from toposort import toposort
+from pandas.tseries.holiday import AbstractHolidayCalendar, MO
+from pandas.tseries.offsets import CustomBusinessDay, DateOffset
 from numpy.random import triangular
 from numpy import percentile
 
@@ -41,24 +43,26 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays
     """
 
-    def __init__(self, username: str, public_holidays: Iterable[datetime.date]=None, personal_holidays: List[datetime.date]=None, weekdays_off: Tuple[int, ...]=WEEKDAYS_OFF, start_date: Optional[datetime.date]=None):
+    def __init__(self, username: str, holiday_calendar: Type[AbstractHolidayCalendar]=None, personal_holidays: List[datetime.date]=None, start_date: Optional[datetime.date]=None):
         self.username = username
-        self.public_holidays = public_holidays if public_holidays is not None else []
-        self.personal_holidays = personal_holidays if personal_holidays is not None else []
-        self.combined_holidays = tuple(list(self.public_holidays) + list(self.personal_holidays))
-        self.weekdays_off = weekdays_off
         self.start_date = start_date if start_date else datetime.datetime.utcnow().date()
 
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
 
+        # prepare business day offset
+        self.business_day_offset = CustomBusinessDay(
+            calendar=holiday_calendar,
+            holidays=personal_holidays
+        )
+
     def __iter__(self):
         return self
 
     def __next__(self) -> datetime.date:
-        self.current_date += datetime.timedelta(days=1)
-        while self.current_date.weekday() in self.weekdays_off or self.current_date in self.combined_holidays:
-            self.current_date += datetime.timedelta(days=1)
+        self.current_date += self.business_day_offset
+        self.current_date = self.current_date.to_pydatetime().date()
+
         return self.current_date
 
 
@@ -67,17 +71,18 @@ class QluTask:
     _field_order = (
                 'id',
                 'absolute_priority',
-                'depends_on',
                 'estimates',
                 'assignee',
                 'project_id',
                 'milestone_id',
+                'depends_on',
             )    
     
-    def __init__(self, id: Any, absolute_priority, estimates, assignee, project_id, milestone_id, depends_on: str=None):
+    def __init__(self, id: Any, absolute_priority, estimates, assignee, project_id, milestone_id, depends_on: Tuple[int]=None):
         self.id = id
         self.absolute_priority = absolute_priority
-        assert isinstance(estimates, QluTaskEstimates)
+        if not isinstance(estimates, QluTaskEstimates):
+            raise ValueError(f'Expected (QluTaskEstimates) object, got: {estimates}')
         self.estimates = estimates
         self.assignee = assignee
         self.project_id = project_id
@@ -171,7 +176,7 @@ class QluSchedule:
 
 class QluTaskScheduler:
 
-    def __init__(self, milestones: Iterable[QluMilestone], public_holidays: Iterable[datetime.date]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
+    def __init__(self, milestones: Iterable[QluMilestone], holiday_calendar: Type[AbstractHolidayCalendar]=None, assignee_personal_holidays: Dict[str, List[datetime.date]]=None, phantom_user_count: int=0, start_date: Optional[datetime.date]=None):
         """
         :param milestones: List of Milestone objects
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
@@ -184,7 +189,7 @@ class QluTaskScheduler:
             if not m.start_date or not m.end_date:
                 raise MilestoneMissingDate('Milestone must have BOTH start_date and end_date defined: {}'.format(m))
         self.id_keyed_milestones = {m.id: m for m in milestones}
-        self.public_holidays = public_holidays
+        self.holiday_calendar = holiday_calendar
         self.assignee_personal_holidays = assignee_personal_holidays
         self.phantom_user_count = phantom_user_count
         self._start_date = start_date
@@ -287,7 +292,7 @@ class QluTaskScheduler:
 
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
-                                                               self.public_holidays,
+                                                               self.holiday_calendar,
                                                                personal_holidays,
                                                                start_date=self._start_date)
             assignees_date_iterators[unique_assignee] = assignees_date_iterator

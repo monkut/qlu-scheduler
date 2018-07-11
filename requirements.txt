@@ -1,5 +1,6 @@
+pandas
 numpy
 toposort
-pytest
+
 arrow
 git+https://github.com/monkut/github-org-manager.git
