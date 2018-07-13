@@ -12,7 +12,9 @@ DEFAULT_DISTRIBUTION_CALLABLE = uniform
 class AssigneeChooser:
     """A helper class to unify the distribution callable interface"""
 
-    def __init__(self, assignees: Iterable[Hashable], distribution: Callable=DEFAULT_DISTRIBUTION_CALLABLE, dargs: Tuple=None, dkwargs: Dict=None):
+    def __init__(self, assignees: Iterable[Hashable],
+                 distribution: Callable=DEFAULT_DISTRIBUTION_CALLABLE,
+                 dargs: Tuple=None, dkwargs: Dict=None):
         """
         :param assignees: assignee ids or names to
         :param distribution:
