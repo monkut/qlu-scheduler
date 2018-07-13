@@ -6,7 +6,8 @@ Test using the following command from the repository root:
 import datetime
 import pytest
 from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday
-from qlu.core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, TaskNotAssigned
+from qlu.core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, QluTaskNotAssigned
+from qlu.utilities import PhantomUserAssignmentManager, AssigneeChooser
 
 
 START_DATE = datetime.datetime(2017, 9, 10).date()
@@ -123,8 +124,51 @@ def test_scheduler_montecarlo():
         assert isinstance(predicted_completion_date, datetime.date)
 
 
+def test_phantomuserassignementmanager_assignee_generation():
+    phantom_user_count = 14
+    pmgr = PhantomUserAssignmentManager(phantom_user_count)
+    assert pmgr.usernames
+    assert len(pmgr.usernames) == phantom_user_count
+
+
+def test_phantomuserassignmentmanager_task_assignment():
+    phantom_user_count = 3
+    pmgr = PhantomUserAssignmentManager(phantom_user_count)
+    assert len(pmgr.usernames) == phantom_user_count
+
+    TEST_TASKS_NONE_ASSIGNED = {
+        QluTask(1, 1, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+        QluTask(2, 3, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', (1,)),
+        QluTask(3, 2, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+    }
+
+    assigned_tasks = pmgr.assign(TEST_TASKS_NONE_ASSIGNED)
+    assert list(assigned_tasks)
+    assert all(t.assignee for t in assigned_tasks)
+
+
+def test_assigneechooser_default():
+    assignees = ['user1', 'user2', 'user3', 'user4']
+    c = AssigneeChooser(assignees)
+
+    picked = []
+    for i in range(15):
+        pick = c.choice()
+        picked.append(pick)
+
+    for assignee in assignees:
+        assert assignee in picked
+
+
 def test_phantom_user_assignment():
-    with pytest.raises(TaskNotAssigned) as e:
+    # PhantomUserAssignmentManager.assign() will update the objects in place, so tests need to be refreshed
+    TEST_TASKS_NONE_ASSIGNED = {
+        QluTask(1, 1, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+        QluTask(2, 3, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', (1,)),
+        QluTask(3, 2, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+    }
+
+    with pytest.raises(QluTaskNotAssigned) as e:
         scheduler = QluTaskScheduler(milestones=TEST_MILESTONES,
                                      holiday_calendar=HOLIDAY_CALENDAR,
                                      assignee_personal_holidays=PERSONAL_HOLIDAYS,
@@ -132,26 +176,41 @@ def test_phantom_user_assignment():
         schedule = scheduler.schedule(tasks=TEST_TASKS_NONE_ASSIGNED)
 
     # assign phantom user
+    phantom_user_count = 1
+    pmgr = PhantomUserAssignmentManager(phantom_user_count)
+    updated_tasks = pmgr.assign(TEST_TASKS_NONE_ASSIGNED)
+
     scheduler = QluTaskScheduler(milestones=TEST_MILESTONES,
                                  holiday_calendar=HOLIDAY_CALENDAR,
                                  assignee_personal_holidays=PERSONAL_HOLIDAYS,
-                                 phantom_user_count=1,
                                  start_date=START_DATE)
-    schedule = scheduler.schedule(tasks=TEST_TASKS_NONE_ASSIGNED)
+    schedule = scheduler.schedule(tasks=updated_tasks)
     assert len(list(schedule.tasks())) == len(TEST_TASKS_NONE_ASSIGNED)
 
     assert len(schedule.assignees()) == 1
     expected_phantom_name = 'phantom-0'
     assert expected_phantom_name in schedule.assignees()
     max_single_phantom_date = schedule.final_date()
+    phantom_user_count = 14
+    pmgr = PhantomUserAssignmentManager(phantom_user_count)
+    assert pmgr.usernames
+
+    # PhantomUserAssignmentManager.assign() will update the objects in place, so tests need to be refreshed
+    TEST_TASKS_NONE_ASSIGNED = {
+        QluTask(1, 1, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+        QluTask(2, 3, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', (1,)),
+        QluTask(3, 2, QluTaskEstimates(3, 5, 15), None, 'project-a', 'milestone-a', None),
+    }
+
+    updated_tasks = list(pmgr.assign(TEST_TASKS_NONE_ASSIGNED))
 
     scheduler = QluTaskScheduler(milestones=TEST_MILESTONES,
                                  holiday_calendar=HOLIDAY_CALENDAR,
                                  assignee_personal_holidays=PERSONAL_HOLIDAYS,
-                                 phantom_user_count=14,
                                  start_date=START_DATE)
-    four_tasks_schedule = scheduler.schedule(tasks=TEST_TASKS_NONE_ASSIGNED)
-    assert len(list(schedule.tasks())) == len(TEST_TASKS_NONE_ASSIGNED)
+    four_tasks_schedule = scheduler.schedule(tasks=updated_tasks)
+    assert len(list(four_tasks_schedule.tasks())) == len(TEST_TASKS_NONE_ASSIGNED)
     max_four_phantom_date = four_tasks_schedule.final_date()
+
     # 14 phantoms randomly assigned *should* result in a earlier total completion date
     assert max_four_phantom_date < max_single_phantom_date
