@@ -1,5 +1,7 @@
 # qlu-scheduler README
 
+[![CircleCI](https://circleci.com/gh/monkut/qlu-scheduler/tree/master.svg?style=svg)](https://circleci.com/gh/monkut/qlu-scheduler/tree/master)
+
 This project is an attempt to automate much of the manual work of scheduling and tracking 
 a software development project.  In addtion, it provides monte-carlo simulation of task schedule delays, enabling you to determine how probable a
 given project will finish on time.
@@ -28,7 +30,6 @@ Sample Instantiation & Usage:
 scheduler = TaskScheduler(milestones=TEST_MILESTONES,
                           public_holidays=PUBLIC_HOLIDAYS,
                           assignee_personal_holidays=PERSONAL_HOLIDAYS,
-                          phantom_user_count=14,
                           start_date=START_DATE)
 result_schedule = scheduler.schedule(TASKS)
 ```
@@ -50,11 +51,9 @@ The following components are used for `qlu scheduling`:
 
 - QluMilestones (*optional*)
 
-- Pubic Holidays (*optional*)
+- holiday_calendar (*optional*)
 
-- Assignee Personal Holidays (*optional*)
-
-- Phantom User Count (*optional*)
+- Assignee Personal Holidays (*optional*) Per user holday dates
 
 - Start Date
 
@@ -66,17 +65,17 @@ A task may be linked to a *milestone*.  If linked to a milestone a task will *NO
 
 ### QluMilestones
 
-(*optional*)
-
 A milestone may be optionally defined in order to control when a task or group of tasks can start.
 In addition, a milestone defines a target *end-date*, allowing you to identify when a task or tasks are predicted to be past the expected due date.
 
 
-### Public Holidays
+### holiday_calendar
 
 (*optional*)
 
 When Public holidays are defined, these dates will *NOT* be included as work days when calculating the schedule.
+
+ - `from pandas.tseries.holiday import AbstractHolidayCalendar` object, used to define the public holidays to NOT include as workdays in resulting schedule.
 
 ### Assignee Personal Holidays
 
@@ -92,6 +91,11 @@ When defiend for a specific user, these dates will *NOT* be included as work day
 When defined they will be used to randomlly assign tasks to in the calculation of a schedule.
 
 The intention is to provide a method by which to estimate when a project will end given a number of workers.
+
+
+```python
+{ 'username': [datetime.date(2018, 1, 13], ...}
+```
 
 ### Start Date
 

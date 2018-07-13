@@ -7,7 +7,7 @@ import os
 import warnings
 import arrow
 from ghorgs.managers import GithubOrganizationManager
-from ..core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, MissingMilestone
+from ..core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, MissingQluMilestone
 
 
 class MissingRequiredEnvironmentVariable(Exception):
@@ -45,21 +45,27 @@ class InvalidGithubOrganizationProject(Exception):
 
 
 class GithubOrganizationProjectsAdaptor:
-    """
-    Class provides an adaptor for github organization projects to
+    """Class provides an adaptor for github organization projects to
     qlu Task/TaskEstimates/Milestones
 
     NOTE: Only 1 project supported
     """
 
-    def __init__(self, organization, projects, milestone_start_dates=None, public_holidays=None, personal_holidays=None, phantom_user_count=0, start_date=None, milestone_start_date_now=False):
+    def __init__(self, organization,
+                 projects,
+                 milestone_start_dates=None,
+                 holiday_calendar=None,
+                 personal_holidays=None,
+                 phantom_user_count=0,
+                 start_date=None,
+                 milestone_start_date_now=False):
         token = os.environ.get('GITHUB_OAUTH_TOKEN', None)
         if not token:
             raise MissingRequiredEnvironmentVariable('Required GITHUB_OAUTH_TOKEN EnVar not set!')
         self.project_manager = GithubOrganizationManager(token, organization)
         self.projects = projects  # organizational projects name
         self.milestone_start_dates = milestone_start_dates if milestone_start_dates is not None else {}
-        self.public_holidays = public_holidays
+        self.holiday_calendar = holiday_calendar
         self.personal_holidays = personal_holidays
         self.phantom_user_count = phantom_user_count
         self.start_date = start_date
@@ -70,8 +76,7 @@ class GithubOrganizationProjectsAdaptor:
         self._tasks = None
 
     def _collect_tasks(self):
-        """
-        Collect Issues from projects and convert to qlu Task objects
+        """Collect Issues from projects and convert to qlu Task objects
         :return:
         """
         tasks = []
@@ -84,9 +89,9 @@ class GithubOrganizationProjectsAdaptor:
             if project.name in self.projects:
                 for issue_object in project.issues():
                     if not issue_object.milestone:
-                        msg = 'Milestone not assigned to Issue({}) [{}], all Issues must be assigned to a Milestone!'.format(issue_object.id,
-                                                                                                                             issue_object.url)
-                        raise MissingMilestone(msg)
+                        msg = (f'Milestone not assigned to Issue({issue_object.id}) [{issue_object.url}], '
+                               f'all Issues must be assigned to a Milestone!')
+                        raise MissingQluMilestone(msg)
                     issue = issue_object.simple
                     issue_url = issue[issue_url_index]
                     if issue[issue_state_index] != 'open':
@@ -154,8 +159,8 @@ class GithubOrganizationProjectsAdaptor:
                     milestone_start_date = self.milestone_start_dates.get(issue_object.milestone.title,
                                                                           self.fallback_milestone_start_date)
                     github_milestone = QluMilestone(issue_object.milestone.title,
-                                                 milestone_start_date,
-                                                 arrow.get(issue_object.milestone.due_on).date())
+                                                    milestone_start_date,
+                                                    arrow.get(issue_object.milestone.due_on).date())
                     self.milestones[issue_object.milestone.title] = github_milestone
                     tasks.append(task)
             projects_processed.append(project.name)
@@ -177,10 +182,9 @@ class GithubOrganizationProjectsAdaptor:
     def generate_task_scheduler(self):
         tasks = self._collect_tasks()
         milestones = list(self._collect_milestones())
-        scheduler = QluTaskScheduler(tasks=tasks,
-                                     milestones=milestones,
-                                     public_holidays=self.public_holidays,
+        scheduler = QluTaskScheduler(milestones=milestones,
+                                     holiday_calendar=self.holiday_calendar,
                                      assignee_personal_holidays=self.personal_holidays,
                                      phantom_user_count=self.phantom_user_count,
                                      start_date=self.start_date)
-        return scheduler
+        return scheduler.schedule(tasks)
