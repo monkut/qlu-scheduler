@@ -1,6 +1,5 @@
 check:
-	flake8 --max-line-length 140 --max-complexity 10 qlu/
-	pydocstyle qlu/
+	flake8 --max-line-length 140 --max-complexity 18 qlu/
 
 pylint:
 	pylint --rcfile .pylintrc qlu/
@@ -18,4 +17,4 @@ htmlcov:
 	pytest --cov qlu/ --cov-report html
 	open /tmp/htmlcov/index.html
 
-pullrequestcheck: check pylint coverage
+pullrequestcheck: check coverage
