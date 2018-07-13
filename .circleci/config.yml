@@ -39,7 +39,6 @@ jobs:
           name: run code checks
           command: |
             make check
-            make pylint
 
 
       - run:
