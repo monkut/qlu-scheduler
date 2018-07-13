@@ -7,7 +7,7 @@ import os
 import warnings
 import arrow
 from ghorgs.managers import GithubOrganizationManager
-from ..core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, MissingMilestone
+from ..core import QluTaskScheduler, QluTask, QluTaskEstimates, QluMilestone, MissingQluMilestone
 
 
 class MissingRequiredEnvironmentVariable(Exception):
@@ -45,8 +45,7 @@ class InvalidGithubOrganizationProject(Exception):
 
 
 class GithubOrganizationProjectsAdaptor:
-    """
-    Class provides an adaptor for github organization projects to
+    """Class provides an adaptor for github organization projects to
     qlu Task/TaskEstimates/Milestones
 
     NOTE: Only 1 project supported
@@ -77,8 +76,7 @@ class GithubOrganizationProjectsAdaptor:
         self._tasks = None
 
     def _collect_tasks(self):
-        """
-        Collect Issues from projects and convert to qlu Task objects
+        """Collect Issues from projects and convert to qlu Task objects
         :return:
         """
         tasks = []
@@ -93,7 +91,7 @@ class GithubOrganizationProjectsAdaptor:
                     if not issue_object.milestone:
                         msg = (f'Milestone not assigned to Issue({issue_object.id}) [{issue_object.url}], '
                                f'all Issues must be assigned to a Milestone!')
-                        raise MissingMilestone(msg)
+                        raise MissingQluMilestone(msg)
                     issue = issue_object.simple
                     issue_url = issue[issue_url_index]
                     if issue[issue_state_index] != 'open':
