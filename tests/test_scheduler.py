@@ -29,7 +29,7 @@ PERSONAL_HOLIDAYS = {
 }
 
 # Required Components for task scheduling
-# (ABSOLUTE_PRIORITY, TASK_ID, [DEPENDS_ON, ..], (ESTIMATE_MIN, ESTIMATE_PROBABLE, ESTIMATE_MAX), [ASSIGNEE-A, ASSIGNEE-B], PROJECT, MILESTONE)
+# (TASK_ID, ABSOLUTE_PRIORITY, QluTaskEstimates(ESTIMATE_MIN, ESTIMATE_PROBABLE, ESTIMATE_MAX), [ASSIGNEE-A, ASSIGNEE-B], PROJECT, MILESTONE, DEPENDS_ON)
 
 TEST_MILESTONES = [
     # NAME: (STARTDATETIME, ENDDATETIME)
@@ -45,6 +45,11 @@ TEST_MILESTONES = [
     )
 ]
 
+TEST_PROJECT_B_MILESTONE = QluMilestone(
+        'milestone-x',
+        datetime.datetime(2017, 9, 20).date(),
+        datetime.datetime(2017, 10, 19).date(),
+    )
 
 TEST_TASKS = {
     # prioritized tasks
@@ -60,7 +65,14 @@ TEST_TASKS_NONE_ASSIGNED = {
 }
 
 
-def test_qlutask_instaniation():
+TEST_TASKS_MULTIPROJECT = {
+    QluTask(1, 1, QluTaskEstimates(3, 5, 15), 'user-a', 'project-a', 'milestone-a', None),
+    QluTask(2, 2, QluTaskEstimates(3, 5, 15), 'user-a', 'project-a', 'milestone-a', None),
+    QluTask(3, 3, QluTaskEstimates(1, 2, 5), 'user-a', 'project-b', 'milestone-x', None),
+}
+
+
+def test_qlutask_instantiation():
     e = QluTaskEstimates(3, 5, 15)
     assignee = 'u1'
     t = QluTask(1, 99, e, assignee, 'project-a', 'milestone-a', None)
@@ -103,6 +115,36 @@ def test_scheduler():
     assert scheduled_tasks[2].milestone_id == 'milestone-b'
     assert scheduled_tasks[2].start_date == datetime.date(2017, 10, 3)  # not started until milestone starts
     assert scheduled_tasks[2].end_date == datetime.date(2017, 10, 9)
+
+
+def test_multiproject_scheduler():
+    PERSONAL_HOLIDAYS = {
+        'user-a': [datetime.date(2017, 10, 15)],
+    }
+
+    milestones = TEST_MILESTONES[:]
+    milestones.append(TEST_PROJECT_B_MILESTONE)
+    scheduler = QluTaskScheduler(milestones=milestones,
+                                 holiday_calendar=HOLIDAY_CALENDAR,
+                                 assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                                 start_date=START_DATE)
+    schedule = scheduler.schedule(tasks=TEST_TASKS_MULTIPROJECT)
+    scheduled_tasks = list(schedule.tasks())
+    assert len(scheduled_tasks) == len(TEST_TASKS_MULTIPROJECT)
+
+    assert scheduled_tasks[0].id == 1
+    assert scheduled_tasks[0].milestone_id == 'milestone-a'
+    assert scheduled_tasks[0].start_date == datetime.date(2017, 9, 18)  # should be next Monday
+    assert scheduled_tasks[0].end_date == datetime.date(2017, 9, 22)
+
+    print(scheduled_tasks)
+    assert scheduled_tasks[1].milestone_id == 'milestone-a'
+    assert scheduled_tasks[1].start_date == datetime.date(2017, 9, 25)
+    assert scheduled_tasks[1].end_date == datetime.date(2017, 9, 29)
+
+    assert scheduled_tasks[2].milestone_id == 'milestone-x'
+    assert scheduled_tasks[2].start_date == datetime.date(2017, 10, 2)
+    assert scheduled_tasks[2].end_date == datetime.date(2017, 10, 3)
 
 
 def test_scheduler_montecarlo():
