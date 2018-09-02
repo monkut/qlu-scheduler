@@ -103,6 +103,8 @@ class QluTask:
         self.estimates = estimates
         self.assignee = assignee
         self.project_id = project_id
+        if milestone_id is None:
+            raise ValueError(f'Required "milestone_id" not defined!')
         self.milestone_id = milestone_id
         self.depends_on = depends_on
         self.scheduled_dates = []
@@ -146,10 +148,11 @@ class QluTask:
         return getattr(self, fieldname)
 
     def __str__(self) -> str:
-        return 'QluTask(id={}, project_id={}, milestone_id={}, assignee={})'.format(self.id,
-                                                                                    self.project_id,
-                                                                                    self.milestone_id,
-                                                                                    self.assignee)
+        return 'QluTask(id={}, absolute_priority={}, project_id={}, milestone_id={}, assignee={})'.format(self.id,
+                                                                                                          self.absolute_priority,
+                                                                                                          self.project_id,
+                                                                                                          self.milestone_id,
+                                                                                                          self.assignee)
 
     def __repr__(self) -> str:
         return self.__str__()
