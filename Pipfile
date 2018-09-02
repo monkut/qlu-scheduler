@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pandas = "*"
+numpy = "*"
+toposort = "*"
+arrow = "*"
+ghorgs = {git = "https://github.com/monkut/github-org-manager.git"}
+
+[dev-packages]
+pytest = "*"
+coverage = "*"
+pytest-cov = "*"
+"flake8" = "*"
+pylint = "*"
+pydocstyle = "*"
+mypy = "*"
+
+[requires]
+python_version = "3.6"

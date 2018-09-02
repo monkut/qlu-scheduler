@@ -6,7 +6,7 @@ This project is an attempt to automate much of the manual work of scheduling and
 a software development project.  In addtion, it provides monte-carlo simulation of task schedule delays, enabling you to determine how probable a
 given project will finish on time.
 
-It uses the following key components to schedule a project:
+It uses the following key components to schedule 1 or more projects:
 
 - Project-ID
     - Identifies a specific Project
@@ -27,10 +27,10 @@ It uses the following key components to schedule a project:
 Sample Instantiation & Usage:
 
 ```python
-scheduler = TaskScheduler(milestones=TEST_MILESTONES,
-                          public_holidays=PUBLIC_HOLIDAYS,
-                          assignee_personal_holidays=PERSONAL_HOLIDAYS,
-                          start_date=START_DATE)
+scheduler = QluTaskScheduler(milestones=TEST_MILESTONES,
+                             public_holidays=PUBLIC_HOLIDAYS,
+                             assignee_personal_holidays=PERSONAL_HOLIDAYS,
+                             start_date=START_DATE)
 result_schedule = scheduler.schedule(TASKS)
 ```
 
@@ -83,19 +83,6 @@ When Public holidays are defined, these dates will *NOT* be included as work day
 
 When defiend for a specific user, these dates will *NOT* be included as work days for the user when calculating the schedule.
 
-### Phantom User Count
-
-(*optional*)
-
-*Phatom Users* are intended to be used for project planning.
-When defined they will be used to randomlly assign tasks to in the calculation of a schedule.
-
-The intention is to provide a method by which to estimate when a project will end given a number of workers.
-
-
-```python
-{ 'username': [datetime.date(2018, 1, 13], ...}
-```
 
 ### Start Date
 

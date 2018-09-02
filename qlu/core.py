@@ -21,6 +21,8 @@ SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
 
 QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
+
+# 'project_id' is not needed here as QluTasks are linked to the specific project and to the QluMilestone
 QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
 
 
@@ -155,7 +157,7 @@ class QluTask:
 
 class QluSchedule:
     """
-    Result Schedule object of TaskScheduler call
+    Result Schedule object of QluTaskScheduler call
     """
 
     def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: Dict[Any, List[QluTask]]):
