@@ -7,7 +7,7 @@ import warnings
 from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type, Set
 from functools import lru_cache
 from itertools import groupby
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from collections import defaultdict, namedtuple, Counter
 from toposort import toposort
 from pandas.tseries.holiday import AbstractHolidayCalendar
@@ -28,6 +28,12 @@ QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
 
 class MissingQluMilestone(Exception):
     """Exception for case where expected QluMilestone is not assigned to a QluTask.
+    """
+    pass
+
+
+class MissingQluTaskEstimate(Exception):
+    """Exception for case where an expected estimate value is missing
     """
     pass
 
@@ -364,9 +370,17 @@ class QluTaskScheduler:
             # group tasks by assignees
             # --> if more than 1 assignee, select 1, and issue warning
             for assignee, assignee_tasks in groupby(sorted_task_detail_values, attrgetter('assignee')):
+
                 # process assignee tasks
-                # --> sort by priority, and schedule
-                priority_sorted_assignee_tasks = sorted(assignee_tasks, key=attrgetter('absolute_priority'))
+                # --> sort by milestone.enddate, priority, and schedule
+                temp_priority_sorted_assignee_tasks = []
+                for temp_assignee_task in assignee_tasks:
+                    milestone_id = temp_assignee_task.milestone_id
+                    _, milestone_start_date, milestone_end_date = self.id_keyed_milestones[milestone_id]
+                    key = (milestone_end_date, temp_assignee_task.absolute_priority)
+                    temp_priority_sorted_assignee_tasks.append((key, temp_assignee_task))
+                priority_sorted_assignee_tasks = [t for key, t in sorted(temp_priority_sorted_assignee_tasks, key=itemgetter(0))]
+
                 assignee_task_count = len(priority_sorted_assignee_tasks)
                 assignee_scheduled_task_count = 0
                 looped_work_date = None
@@ -383,6 +397,8 @@ class QluTaskScheduler:
                             # -- yes, this would be more efficient if we got a bunch here when running montecarlo,
                             # -- but, it's difficult to do when tasks are inter-dependant.
                             estimate = int(triangular(min_estimate, main_estimate, max_estimate, size=1)[0])
+                        if not estimate or estimate <= 0:
+                            MissingQluTaskEstimate(f'{task} has an invalid estimate: estimate={estimate}')
 
                         # Check milestone has started before scheduling with assignee
                         if assignees_date_iterators[assignee].current_date >= milestone_start_date:
@@ -408,8 +424,11 @@ class QluTaskScheduler:
                     if assignee_scheduled_task_count < assignee_task_count:
                         # increment
                         looped_work_date = next(assignees_date_iterators[assignee])
-                    else:
+                    elif all(t.is_scheduled for t in priority_sorted_assignee_tasks):
                         break  # All tasks are scheduled
+                    else:
+                        unscheduled_tasks = [t for t in priority_sorted_assignee_tasks if not t.is_scheduled]
+                        warnings.warn(f'Not all tasks are scheduled, re-evaluating tasks: {unscheduled_tasks}')
         return id_keyed_tasks, all_assignee_tasks
 
     def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool=False) -> QluSchedule:
@@ -460,6 +479,9 @@ class QluTaskScheduler:
         id_keyed_tasks, all_assignee_tasks = self._schedule_tasks(id_keyed_tasks, dependency_graph, unique_assignees, is_montecarlo)
 
         # attach scheduled dates to task objects
-        scheduled_tasks = id_keyed_tasks.values()
+        scheduled_tasks = id_keyed_tasks.values()  # find is_schedule false
+        for st in scheduled_tasks:
+            if not st.is_scheduled:
+                print(st)
         qlu_schedule = QluSchedule(scheduled_tasks, all_assignee_tasks)
         return qlu_schedule
