@@ -77,7 +77,9 @@ class AssigneeWorkDateIterator:
 
         :param username: assignee username
         :param holiday_calendar: Calendar defining public holidays
-        :param workdays: assignee workdays in the week in format: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] (Default=['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+        :param workdays: assignee workdays in the week
+            Format: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+            Default=['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
         :param personal_holidays: Holidays taken by the specific assignee (username)
         :param start_date: Date to start iterator at
         """
