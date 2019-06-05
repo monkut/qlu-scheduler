@@ -27,8 +27,15 @@ It uses the following key components to schedule 1 or more projects:
 Sample Instantiation & Usage:
 
 ```python
+WORKDAYS = {'assignee-name': ['Mon', 'Tue', 'Wed']}
+PERSONAL_HOLIDAYS = {
+    'assignee-name': [
+        datetime.date(2019, 6, 1),
+    ]
+}
 scheduler = QluTaskScheduler(milestones=TEST_MILESTONES,
                              public_holidays=PUBLIC_HOLIDAYS,
+                             assignee_workdays=WORKDAYS,
                              assignee_personal_holidays=PERSONAL_HOLIDAYS,
                              start_date=START_DATE)
 result_schedule = scheduler.schedule(TASKS)

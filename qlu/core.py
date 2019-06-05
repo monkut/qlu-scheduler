@@ -2,6 +2,7 @@
 Milestone defines when the task CAN start.
 assignee schedule can define when the task IS started.
 """
+import logging
 import datetime
 import warnings
 from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type, Set
@@ -16,9 +17,20 @@ from numpy.random import triangular
 from numpy import percentile
 
 
+logger = logging.getLogger(__name__)
+
 SATURDAY = 5
 SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
+WEEKDAY_IDENTIFIERS = (
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat'
+)
 
 QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
 
@@ -57,13 +69,17 @@ class AssigneeWorkDateIterator:
     """
 
     def __init__(self, username: str,
-                 holiday_calendar: Type[AbstractHolidayCalendar]=None,
-                 personal_holidays: List[datetime.date]=None,
-                 start_date: Optional[datetime.date]=None):
+                 holiday_calendar: Type[AbstractHolidayCalendar] = None,
+                 workdays: Optional[List[str]] = None,
+                 personal_holidays: Optional[List[datetime.date]] = None,
+                 start_date: Optional[datetime.date] = None):
         """
 
         :param username: assignee username
         :param holiday_calendar: Calendar defining public holidays
+        :param workdays: assignee workdays in the week
+            Format: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+            Default=['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
         :param personal_holidays: Holidays taken by the specific assignee (username)
         :param start_date: Date to start iterator at
         """
@@ -73,8 +89,19 @@ class AssigneeWorkDateIterator:
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
 
+        default_weekmask = 'Mon Tue Wed Thu Fri'
+        if workdays:
+            # override the default weekmask
+            if not all(weekday_id in WEEKDAY_IDENTIFIERS for weekday_id in workdays):
+                raise ValueError(f'workdays must be in {WEEKDAY_IDENTIFIERS}, got: {workdays}')
+            prepared_weekmask = ' '.join(workdays)
+        else:
+            prepared_weekmask = default_weekmask
+
         # prepare business day offset
+        # see: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.tseries.offsets.CustomBusinessDay.html
         self.business_day_offset = CustomBusinessDay(
+            weekmask=prepared_weekmask,
             calendar=holiday_calendar,
             holidays=personal_holidays
         )
@@ -235,12 +262,17 @@ class QluTaskScheduler:
     """
 
     def __init__(self, milestones: Iterable[QluMilestone],
-                 holiday_calendar: Type[AbstractHolidayCalendar]=None,
-                 assignee_personal_holidays: Dict[str, Iterable[datetime.date]]=None,
-                 start_date: Optional[datetime.date]=None):
+                 holiday_calendar: Type[AbstractHolidayCalendar] = None,
+                 assignee_workdays: Optional[Dict[str, List[str]]] = None,
+                 assignee_personal_holidays: Optional[Dict[str, Iterable[datetime.date]]] = None,
+                 start_date: Optional[datetime.date] = None):
         """
         :param milestones: List of Milestone objects
         :param holiday_calendar: Calendar object for determining work days
+        :param assignee_workdays: Week workdays for given assignee.
+            In format:
+                {'username': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] }
+            If not given, default to ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
         :param assignee_personal_holidays: (dict) of personal holidays (datetime.date()) keyed by task username
         :param start_date: (datetime.date) Start date of scheduling (if not given current UTC value used)
         """
@@ -250,10 +282,11 @@ class QluTaskScheduler:
                 raise QluMilestoneMissingDate('Milestone must have BOTH start_date and end_date defined: {}'.format(m))
         self.id_keyed_milestones = {m.id: m for m in milestones}
         self.holiday_calendar = holiday_calendar
+        self.assignee_workdays = assignee_workdays
         self.assignee_personal_holidays = assignee_personal_holidays
         self._start_date = start_date
 
-    def montecarlo(self, tasks: Iterable[QluTask], trials: int=5000, q: int=90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
+    def montecarlo(self, tasks: Iterable[QluTask], trials: int = 5000, q: int = 90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified.
 
@@ -316,9 +349,21 @@ class QluTaskScheduler:
                 personal_holidays = []
                 warnings.warn('personal_holidays NOT set!  Assignee holidays will NOT be taken into account!')
 
+            workdays = None
+            if self.assignee_workdays:
+                raw_workdays = self.assignee_workdays.get(unique_assignee, None)
+                if raw_workdays:
+                    # clean and normalize
+                    cleaned_workdays = [day.lower().capitalize()[:3] for day in raw_workdays]
+                    if not all(cleaned_day in WEEKDAY_IDENTIFIERS for cleaned_day in cleaned_workdays):
+                        raise ValueError(f'Invalid workday given, must be in {WEEKDAY_IDENTIFIERS}, got: {raw_workdays}')
+                    logger.debug(f'{unique_assignee}.workdays={cleaned_workdays}')
+                    workdays = cleaned_workdays
+
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
                                                                self.holiday_calendar,
+                                                               workdays,
                                                                personal_holidays,
                                                                start_date=self._start_date)
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
