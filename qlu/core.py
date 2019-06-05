@@ -5,7 +5,7 @@ assignee schedule can define when the task IS started.
 import logging
 import datetime
 import warnings
-from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type, Set, Union
+from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type, Set
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
@@ -70,8 +70,8 @@ class AssigneeWorkDateIterator:
 
     def __init__(self, username: str,
                  holiday_calendar: Type[AbstractHolidayCalendar] = None,
-                 workdays: Union[List[str], None] = None,
-                 personal_holidays: Union[List[datetime.date], None] = None,
+                 workdays: Optional[List[str]] = None,
+                 personal_holidays: Optional[List[datetime.date]] = None,
                  start_date: Optional[datetime.date] = None):
         """
 
@@ -261,8 +261,8 @@ class QluTaskScheduler:
 
     def __init__(self, milestones: Iterable[QluMilestone],
                  holiday_calendar: Type[AbstractHolidayCalendar] = None,
-                 assignee_workdays: Union[Dict[str, List[str]]] = None,
-                 assignee_personal_holidays: Union[Dict[str, Iterable[datetime.date]], None] = None,
+                 assignee_workdays: Optional[Dict[str, List[str]]] = None,
+                 assignee_personal_holidays: Optional[Dict[str, Iterable[datetime.date]]] = None,
                  start_date: Optional[datetime.date] = None):
         """
         :param milestones: List of Milestone objects
