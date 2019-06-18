@@ -443,7 +443,7 @@ class QluTaskScheduler:
                             # -- but, it's difficult to do when tasks are inter-dependant.
                             estimate = int(triangular(min_estimate, main_estimate, max_estimate, size=1)[0])
                         if not estimate or estimate <= 0:
-                            MissingQluTaskEstimate(f'{task} has an invalid estimate: estimate={estimate}')
+                            raise MissingQluTaskEstimate(f'{task} has an invalid estimate: estimate={estimate}')
 
                         # Check milestone has started before scheduling with assignee
                         if assignees_date_iterators[assignee].current_date >= milestone_start_date:
@@ -462,8 +462,7 @@ class QluTaskScheduler:
                                 assignee_scheduled_task_count += 1
 
                         else:
-                            warnings.warn('NOTICE -- QluTask({}) QluMilestone({}) not yet started!'.format(task_id,
-                                                                                                           milestone_id))
+                            warnings.warn(f'NOTICE -- QluTask({task_id}) QluMilestone({milestone_id}) not yet started!')
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if assignee_scheduled_task_count < assignee_task_count:
