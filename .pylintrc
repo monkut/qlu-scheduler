@@ -138,7 +138,12 @@ disable=print-statement,
         too-many-locals,
         fixme,
         too-many-branches,
-        redefined-outer-name
+        redefined-outer-name,
+        no-self-use,
+        no-name-in-module,
+        missing-docstring,
+        bad-continuation
+
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -313,7 +318,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=140
+max-line-length=130
 
 
 # Maximum number of lines in a module
@@ -414,9 +419,7 @@ good-names=i,
            _,
            e,
            p,
-           t,
-           v,
-
+           
 
 # Include a hint for the correct naming format with invalid-name
 include-naming-hint=no
