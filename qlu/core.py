@@ -2,63 +2,66 @@
 Milestone defines when the task CAN start.
 assignee schedule can define when the task IS started.
 """
-import logging
 import datetime
+import logging
 import warnings
-from typing import Any, Dict, Tuple, List, Generator, Optional, KeysView, Iterable, Type, Set
+from collections import Counter, defaultdict, namedtuple
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
-from collections import defaultdict, namedtuple, Counter
-from toposort import toposort
+from typing import Any, Dict, Generator, Iterable, KeysView, List, Optional, Set, Tuple, Type
+
+from numpy import percentile
+from numpy.random import triangular
 from pandas.tseries.holiday import AbstractHolidayCalendar
 from pandas.tseries.offsets import CustomBusinessDay
-from numpy.random import triangular
-from numpy import percentile
-
+from toposort import toposort
 
 logger = logging.getLogger(__name__)
 
 SATURDAY = 5
 SUNDAY = 6
 WEEKDAYS_OFF = (SATURDAY, SUNDAY)
-WEEKDAY_IDENTIFIERS = (
-    'Sun',
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat'
-)
+WEEKDAY_IDENTIFIERS = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 
-QluTaskEstimates = namedtuple('QluTaskEstimates', ('minimum', 'suggested', 'maximum'))
+QluTaskEstimates = namedtuple("QluTaskEstimates", ("minimum", "suggested", "maximum"))
 
 # 'project_id' is not needed here as QluTasks are linked to the specific project and to the QluMilestone
-QluMilestone = namedtuple('QluMilestone', ('id', 'start_date', 'end_date'))
+QluMilestone = namedtuple("QluMilestone", ("id", "start_date", "end_date"))
 
 
 class MissingQluMilestone(Exception):
     """Exception for case where expected QluMilestone is not assigned to a QluTask.
     """
+
     pass
 
 
 class MissingQluTaskEstimate(Exception):
     """Exception for case where an expected estimate value is missing
     """
+
+    pass
+
+
+class QluTaskError(Exception):
+    """Exception of general QluTask related errors.
+    """
+
     pass
 
 
 class QluMilestoneMissingDate(Exception):
     """Exception for case where expected 'date' is missing from a QluMilestone.
     """
+
     pass
 
 
 class QluTaskNotAssigned(Exception):
     """Exception for case where QluTask does not have the assignee field populated.
     """
+
     pass
 
 
@@ -68,11 +71,14 @@ class AssigneeWorkDateIterator:
     Taking into account public_holidays and personal_holidays.
     """
 
-    def __init__(self, username: str,
-                 holiday_calendar: Type[AbstractHolidayCalendar] = None,
-                 workdays: Optional[List[str]] = None,
-                 personal_holidays: Optional[List[datetime.date]] = None,
-                 start_date: Optional[datetime.date] = None):
+    def __init__(
+        self,
+        username: str,
+        holiday_calendar: Type[AbstractHolidayCalendar] = None,
+        workdays: Optional[List[str]] = None,
+        personal_holidays: Optional[List[datetime.date]] = None,
+        start_date: Optional[datetime.date] = None,
+    ):
         """
 
         :param username: assignee username
@@ -89,22 +95,18 @@ class AssigneeWorkDateIterator:
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
 
-        default_weekmask = 'Mon Tue Wed Thu Fri'
+        default_weekmask = "Mon Tue Wed Thu Fri"
         if workdays:
             # override the default weekmask
             if not all(weekday_id in WEEKDAY_IDENTIFIERS for weekday_id in workdays):
-                raise ValueError(f'workdays must be in {WEEKDAY_IDENTIFIERS}, got: {workdays}')
-            prepared_weekmask = ' '.join(workdays)
+                raise ValueError(f"workdays must be in {WEEKDAY_IDENTIFIERS}, got: {workdays}")
+            prepared_weekmask = " ".join(workdays)
         else:
             prepared_weekmask = default_weekmask
 
         # prepare business day offset
         # see: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.tseries.offsets.CustomBusinessDay.html
-        self.business_day_offset = CustomBusinessDay(
-            weekmask=prepared_weekmask,
-            calendar=holiday_calendar,
-            holidays=personal_holidays
-        )
+        self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)
 
     def __iter__(self):
         return self
@@ -118,21 +120,22 @@ class AssigneeWorkDateIterator:
 
 class QluTask:
 
-    _field_order = (
-        'id',
-        'absolute_priority',
-        'estimates',
-        'assignee',
-        'project_id',
-        'milestone_id',
-        'depends_on',
-    )
+    _field_order = ("id", "absolute_priority", "estimates", "assignee", "project_id", "milestone_id", "depends_on")
 
-    def __init__(self, id: Any, absolute_priority, estimates, assignee, project_id, milestone_id, depends_on: Tuple[int]=None):
+    def __init__(
+        self,
+        id: Any,
+        absolute_priority: int,
+        estimates: QluTaskEstimates,
+        assignee: str,
+        project_id: str,
+        milestone_id: str,
+        depends_on: Tuple[int] = None,
+    ):
         self.id = id
         self.absolute_priority = absolute_priority
         if not isinstance(estimates, QluTaskEstimates):
-            raise ValueError(f'Expected (QluTaskEstimates) object, got: {estimates}')
+            raise ValueError(f"Expected (QluTaskEstimates) object, got: {estimates} {type(estimates)}")
         self.estimates = estimates
         self.assignee = assignee
         self.project_id = project_id
@@ -164,6 +167,12 @@ class QluTask:
         """
         return True if self.scheduled_dates else False
 
+    def get_scheduled_dates(self) -> Generator[datetime.date, None, None]:
+        if not self.scheduled_dates:
+            raise QluTaskError("QluTask not scheduled: Populated when scheduled via QluTaskScheduler.schedule(Iterable[QluTask])")
+        for d in self.scheduled_dates:
+            yield d
+
     def __iter__(self):
         self._iter_pos = 0
         return self
@@ -181,11 +190,9 @@ class QluTask:
         return getattr(self, fieldname)
 
     def __str__(self) -> str:
-        return 'QluTask(id={}, absolute_priority={}, project_id={}, milestone_id={}, assignee={})'.format(self.id,
-                                                                                                          self.absolute_priority,
-                                                                                                          self.project_id,
-                                                                                                          self.milestone_id,
-                                                                                                          self.assignee)
+        return "QluTask(id={}, absolute_priority={}, project_id={}, milestone_id={}, assignee={})".format(
+            self.id, self.absolute_priority, self.project_id, self.milestone_id, self.assignee
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -215,11 +222,11 @@ class QluSchedule:
                 (QLUMILESTONE_ID, [QLUTASK, ]
 
         """
-        milestone_id_sorted = sorted(self._scheduled_tasks, key=attrgetter('milestone_id'))
-        for milestone_id, tasks in groupby(milestone_id_sorted, attrgetter('milestone_id')):
+        milestone_id_sorted = sorted(self._scheduled_tasks, key=attrgetter("milestone_id"))
+        for milestone_id, tasks in groupby(milestone_id_sorted, attrgetter("milestone_id")):
             yield milestone_id, list(tasks)
 
-    def tasks(self, assignee: str=None) -> List[QluTask]:
+    def tasks(self, assignee: str = None) -> List[QluTask]:
         """
         Return scheduled tasks ordered_by and finish date.
 
@@ -230,7 +237,7 @@ class QluSchedule:
             if assignee and assigned_user != assignee:
                 continue
             all_tasks.extend(tasks)
-        return sorted(all_tasks, key=attrgetter('end_date'))
+        return sorted(all_tasks, key=attrgetter("end_date"))
 
     def assignees(self) -> KeysView:
         """
@@ -239,16 +246,16 @@ class QluSchedule:
         return self._assignee_keyed_tasks.keys()
 
     @lru_cache(maxsize=25)
-    def final_task(self, assignee: str=None) -> QluTask:
+    def final_task(self, assignee: str = None) -> QluTask:
         """
         :param assignee: assignee to get task for.
         :return: last task assigneed to given assignee.
         """
         tasks = self.tasks(assignee)
-        final_task = max(tasks, key=attrgetter('end_date'))
+        final_task = max(tasks, key=attrgetter("end_date"))
         return final_task
 
-    def final_date(self, assignee: str=None) -> datetime.date:
+    def final_date(self, assignee: str = None) -> datetime.date:
         """
         :param assignee: assignee to get task final date for.
         :return: last assigned work data for assignee.
@@ -261,11 +268,14 @@ class QluTaskScheduler:
     """Methods to schedule tasks given a set of milestones, tasks and holidays.
     """
 
-    def __init__(self, milestones: Iterable[QluMilestone],
-                 holiday_calendar: Type[AbstractHolidayCalendar] = None,
-                 assignee_workdays: Optional[Dict[str, List[str]]] = None,
-                 assignee_personal_holidays: Optional[Dict[str, Iterable[datetime.date]]] = None,
-                 start_date: Optional[datetime.date] = None):
+    def __init__(
+        self,
+        milestones: Iterable[QluMilestone],
+        holiday_calendar: Type[AbstractHolidayCalendar] = None,
+        assignee_workdays: Optional[Dict[str, List[str]]] = None,
+        assignee_personal_holidays: Optional[Dict[str, Iterable[datetime.date]]] = None,
+        start_date: Optional[datetime.date] = None,
+    ):
         """
         :param milestones: List of Milestone objects
         :param holiday_calendar: Calendar object for determining work days
@@ -279,7 +289,7 @@ class QluTaskScheduler:
         # check that milestones contain expected start, end dates
         for m in milestones:
             if not m.start_date or not m.end_date:
-                raise QluMilestoneMissingDate('Milestone must have BOTH start_date and end_date defined: {}'.format(m))
+                raise QluMilestoneMissingDate("Milestone must have BOTH start_date and end_date defined: {}".format(m))
         self.id_keyed_milestones = {m.id: m for m in milestones}
         self.holiday_calendar = holiday_calendar
         self.assignee_workdays = assignee_workdays
@@ -322,7 +332,7 @@ class QluTaskScheduler:
         task_milestone_ids = [t.milestone_id for t in id_keyed_tasks.values() if t.milestone_id]
         for milestone_id in task_milestone_ids:
             if milestone_id not in self.id_keyed_milestones:
-                raise MissingQluMilestone('Required QluMilestone definition missing: {}'.format(milestone_id))
+                raise MissingQluMilestone("Required QluMilestone definition missing: {}".format(milestone_id))
 
     def _prepare_assignee_workday_iterators(self, unique_assignees: Set[str]) -> Dict[Any, Iterable]:
         """
@@ -344,10 +354,10 @@ class QluTaskScheduler:
             if self.assignee_personal_holidays:
                 personal_holidays = self.assignee_personal_holidays.get(unique_assignee, [])
                 if unique_assignee not in self.assignee_personal_holidays:
-                    warnings.warn('personal_holiday date list not given for: {}'.format(unique_assignee))
+                    warnings.warn("personal_holiday date list not given for: {}".format(unique_assignee))
             else:
                 personal_holidays = []
-                warnings.warn('personal_holidays NOT set!  Assignee holidays will NOT be taken into account!')
+                warnings.warn("personal_holidays NOT set!  Assignee holidays will NOT be taken into account!")
 
             workdays = None
             if self.assignee_workdays:
@@ -356,16 +366,14 @@ class QluTaskScheduler:
                     # clean and normalize
                     cleaned_workdays = [day.lower().capitalize()[:3] for day in raw_workdays]
                     if not all(cleaned_day in WEEKDAY_IDENTIFIERS for cleaned_day in cleaned_workdays):
-                        raise ValueError(f'Invalid workday given, must be in {WEEKDAY_IDENTIFIERS}, got: {raw_workdays}')
-                    logger.debug(f'{unique_assignee}.workdays={cleaned_workdays}')
+                        raise ValueError(f"Invalid workday given, must be in {WEEKDAY_IDENTIFIERS}, got: {raw_workdays}")
+                    logger.debug(f"{unique_assignee}.workdays={cleaned_workdays}")
                     workdays = cleaned_workdays
 
             # build work date iterator
-            assignees_date_iterator = AssigneeWorkDateIterator(unique_assignee,
-                                                               self.holiday_calendar,
-                                                               workdays,
-                                                               personal_holidays,
-                                                               start_date=self._start_date)
+            assignees_date_iterator = AssigneeWorkDateIterator(
+                unique_assignee, self.holiday_calendar, workdays, personal_holidays, start_date=self._start_date
+            )
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
         return assignees_date_iterators
 
@@ -410,11 +418,11 @@ class QluTaskScheduler:
 
             # collect task information in current group
             task_details = {task_id: id_keyed_tasks[task_id] for task_id in task_group}
-            sorted_task_detail_values = sorted(task_details.values(), key=attrgetter('assignee'))
+            sorted_task_detail_values = sorted(task_details.values(), key=attrgetter("assignee"))
 
             # group tasks by assignees
             # --> if more than 1 assignee, select 1, and issue warning
-            for assignee, assignee_tasks in groupby(sorted_task_detail_values, attrgetter('assignee')):
+            for assignee, assignee_tasks in groupby(sorted_task_detail_values, attrgetter("assignee")):
 
                 # process assignee tasks
                 # --> sort by milestone.enddate, priority, and schedule
@@ -443,7 +451,7 @@ class QluTaskScheduler:
                             # -- but, it's difficult to do when tasks are inter-dependant.
                             estimate = int(triangular(min_estimate, main_estimate, max_estimate, size=1)[0])
                         if not estimate or estimate <= 0:
-                            raise MissingQluTaskEstimate(f'{task} has an invalid estimate: estimate={estimate}')
+                            raise MissingQluTaskEstimate(f"{task} has an invalid estimate: estimate={estimate}")
 
                         # Check milestone has started before scheduling with assignee
                         if assignees_date_iterators[assignee].current_date >= milestone_start_date:
@@ -462,7 +470,7 @@ class QluTaskScheduler:
                                 assignee_scheduled_task_count += 1
 
                         else:
-                            warnings.warn(f'NOTICE -- QluTask({task_id}) QluMilestone({milestone_id}) not yet started!')
+                            warnings.warn(f"NOTICE -- QluTask({task_id}) QluMilestone({milestone_id}) not yet started!")
                     # single loop complete,
                     # --> check if fully scheduled, if not increment user dates
                     if assignee_scheduled_task_count < assignee_task_count:
@@ -472,10 +480,10 @@ class QluTaskScheduler:
                         break  # All tasks are scheduled
                     else:
                         unscheduled_tasks = [t for t in priority_sorted_assignee_tasks if not t.is_scheduled]
-                        warnings.warn(f'Not all tasks are scheduled, re-evaluating tasks: {unscheduled_tasks}')
+                        warnings.warn(f"Not all tasks are scheduled, re-evaluating tasks: {unscheduled_tasks}")
         return id_keyed_tasks, all_assignee_tasks
 
-    def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool=False) -> QluSchedule:
+    def schedule(self, tasks: Iterable[QluTask], is_montecarlo: bool = False) -> QluSchedule:
         """
         Schedule tasks given on instantiation.
 
@@ -483,7 +491,7 @@ class QluTaskScheduler:
         :param is_montecarlo: If True, random value selected using triangular distribution
         """
         if not tasks:
-            raise ValueError('Expected argument value not valid (tasks): {}'.format(tasks))
+            raise ValueError("Expected argument value not valid (tasks): {}".format(tasks))
         unique_assignees = set()
         id_keyed_tasks = {}
         for t in tasks:
@@ -506,8 +514,10 @@ class QluTaskScheduler:
                 unique_assignees.add(task_object.assignee)
 
         if not unique_assignees:
-            raise QluTaskNotAssigned('QluTasks must have an assignee value! '
-                                     '>Use qlu.utilities.PhantomUserAssignmentManager to generate and assign Users for schedule prediction')
+            raise QluTaskNotAssigned(
+                "QluTasks must have an assignee value! "
+                ">Use qlu.utilities.PhantomUserAssignmentManager to generate and assign Users for schedule prediction"
+            )
 
         dependency_graph = self._prepare_task_dependency_graph(dependant_tasks)
 
