@@ -17,7 +17,7 @@ class QluTaskTestCase(TestCase):
             depends_on=None,
         )
         with self.assertRaises(QluTaskError):
-            qlutask.get_scheduled_dates()
+            list(qlutask.get_scheduled_dates())
 
         # add dates
         sample_date = datetime.date(2020, 1, 1)
