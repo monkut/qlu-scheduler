@@ -24,6 +24,6 @@ class QluTaskTestCase(TestCase):
         qlutask.scheduled_dates = [sample_date]
 
         dates = list(qlutask.get_scheduled_dates())
-        self.assertEqual(dates)
+        self.assertTrue(dates)
         self.assertEqual(len(dates), 1)
         self.assertEqual(dates[0], sample_date)
