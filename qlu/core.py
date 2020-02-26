@@ -129,7 +129,7 @@ class QluTask:
         estimates: QluTaskEstimates,
         assignee: str,
         project_id: str,
-        milestone_id: Optional[str],
+        milestone_id: str,
         depends_on: Tuple[int] = None,
     ):
         self.id = id

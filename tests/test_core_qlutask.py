@@ -8,7 +8,13 @@ class QluTaskTestCase(TestCase):
     def test_get_scheduled_dates(self):
         estimates = QluTaskEstimates(minimum=None, suggested=1, maximum=None)
         qlutask = QluTask(
-            id="taskid-1", absolute_priority=1, estimates=estimates, assignee="sample-user", project_id="proj-1", milestone_id=None, depends_on=None
+            id="taskid-1",
+            absolute_priority=1,
+            estimates=estimates,
+            assignee="sample-user",
+            project_id="proj-1",
+            milestone_id="milestone-1",
+            depends_on=None,
         )
         with self.assertRaises(QluTaskError):
             qlutask.get_scheduled_dates()
