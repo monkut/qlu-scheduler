@@ -2,6 +2,7 @@
 Milestone defines when the task CAN start.
 assignee schedule can define when the task IS started.
 """
+
 import datetime
 import logging
 import warnings
@@ -9,11 +10,12 @@ from collections import Counter, defaultdict, namedtuple
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
-from typing import Any, Dict, Generator, Iterable, KeysView, List, Optional, Set, Tuple, Type
+from typing import Any, Generator, Iterable, KeysView, Optional, Type
 
 from numpy import percentile
 from numpy.random import triangular
 from toposort import toposort
+
 try:
     from pandas.tseries.holiday import AbstractHolidayCalendar
     from pandas.tseries.offsets import CustomBusinessDay
@@ -35,36 +37,31 @@ QluMilestone = namedtuple("QluMilestone", ("id", "start_date", "end_date"))
 
 
 class MissingQluMilestone(Exception):
-    """Exception for case where expected QluMilestone is not assigned to a QluTask.
-    """
+    """Exception for case where expected QluMilestone is not assigned to a QluTask."""
 
     pass
 
 
 class MissingQluTaskEstimate(Exception):
-    """Exception for case where an expected estimate value is missing
-    """
+    """Exception for case where an expected estimate value is missing"""
 
     pass
 
 
 class QluTaskError(Exception):
-    """Exception of general QluTask related errors.
-    """
+    """Exception of general QluTask related errors."""
 
     pass
 
 
 class QluMilestoneMissingDate(Exception):
-    """Exception for case where expected 'date' is missing from a QluMilestone.
-    """
+    """Exception for case where expected 'date' is missing from a QluMilestone."""
 
     pass
 
 
 class QluTaskNotAssigned(Exception):
-    """Exception for case where QluTask does not have the assignee field populated.
-    """
+    """Exception for case where QluTask does not have the assignee field populated."""
 
     pass
 
@@ -79,8 +76,8 @@ class AssigneeWorkDateIterator:
         self,
         username: str,
         holiday_calendar: Type[AbstractHolidayCalendar] = None,
-        workdays: Optional[List[str]] = None,
-        personal_holidays: Optional[List[datetime.date]] = None,
+        workdays: Optional[list[str]] = None,
+        personal_holidays: Optional[list[datetime.date]] = None,
         start_date: Optional[datetime.date] = None,
     ):
         """
@@ -137,7 +134,7 @@ class QluTask:
         assignee: str,
         project_id: str,
         milestone_id: str,
-        depends_on: Tuple[int] = None,
+        depends_on: tuple[int] = None,
     ):
         self.id = id
         self.absolute_priority = absolute_priority
@@ -147,7 +144,7 @@ class QluTask:
         self.assignee = assignee
         self.project_id = project_id
         if milestone_id is None:
-            raise ValueError(f'Required "milestone_id" not defined!')
+            raise ValueError('Required "milestone_id" not defined!')
         self.milestone_id = milestone_id
         self.depends_on = depends_on
         self.scheduled_dates = []
@@ -210,7 +207,7 @@ class QluSchedule:
     Result Schedule object of QluTaskScheduler call
     """
 
-    def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: Dict[Any, List[QluTask]]):
+    def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: dict[Any, list[QluTask]]):
         """
         :param scheduled_tasks: All tasks
         :param assignee_tasks: Assignee Keyed task lists
@@ -233,7 +230,7 @@ class QluSchedule:
         for milestone_id, tasks in groupby(milestone_id_sorted, attrgetter("milestone_id")):
             yield milestone_id, list(tasks)
 
-    def tasks(self, assignee: str = None) -> List[QluTask]:
+    def tasks(self, assignee: str = None) -> list[QluTask]:
         """
         Return scheduled tasks ordered_by and finish date.
 
@@ -272,19 +269,18 @@ class QluSchedule:
 
 
 class QluTaskScheduler:
-    """Methods to schedule tasks given a set of milestones, tasks and holidays.
-    """
+    """Methods to schedule tasks given a set of milestones, tasks and holidays."""
 
     def __init__(
         self,
         milestones: Iterable[QluMilestone],
         holiday_calendar: Type[AbstractHolidayCalendar] = None,
-        assignee_workdays: Optional[Dict[str, List[str]]] = None,
-        assignee_personal_holidays: Optional[Dict[str, Iterable[datetime.date]]] = None,
+        assignee_workdays: Optional[dict[str, list[str]]] = None,
+        assignee_personal_holidays: Optional[dict[str, Iterable[datetime.date]]] = None,
         start_date: Optional[datetime.date] = None,
     ):
         """
-        :param milestones: List of Milestone objects
+        :param milestones: list of Milestone objects
         :param holiday_calendar: Calendar object for determining work days
         :param assignee_workdays: Week workdays for given assignee.
             In format:
@@ -303,7 +299,7 @@ class QluTaskScheduler:
         self.assignee_personal_holidays = assignee_personal_holidays
         self._start_date = start_date
 
-    def montecarlo(self, tasks: Iterable[QluTask], trials: int = 5000, q: int = 90) -> Tuple[Dict[Any, Counter], Dict[str, datetime.date]]:
+    def montecarlo(self, tasks: Iterable[QluTask], trials: int = 5000, q: int = 90) -> tuple[dict[Any, Counter], dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified.
 
@@ -327,7 +323,7 @@ class QluTaskScheduler:
             milestone_date_at_percentile[milestone] = date_at_percentile
         return milestone_completion_distribution, milestone_date_at_percentile
 
-    def _check_milestones(self, id_keyed_tasks: Dict[Any, QluTask]) -> None:
+    def _check_milestones(self, id_keyed_tasks: dict[Any, QluTask]) -> None:
         """
         Check that a QluMilestone is assigned to all QluTasks as expected.
         If not found, raises MissingMilestone.
@@ -341,7 +337,7 @@ class QluTaskScheduler:
             if milestone_id not in self.id_keyed_milestones:
                 raise MissingQluMilestone("Required QluMilestone definition missing: {}".format(milestone_id))
 
-    def _prepare_assignee_workday_iterators(self, unique_assignees: Set[str]) -> Dict[Any, Iterable]:
+    def _prepare_assignee_workday_iterators(self, unique_assignees: set[str]) -> dict[Any, Iterable]:
         """
         Create the workday iterators for all assignees.
 
@@ -384,7 +380,7 @@ class QluTaskScheduler:
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
         return assignees_date_iterators
 
-    def _prepare_task_dependency_graph(self, dependant_tasks: Dict[Any, QluTask]) -> List:
+    def _prepare_task_dependency_graph(self, dependant_tasks: dict[Any, QluTask]) -> list:
         """
         Process task dependencies as defined in the QluTask.depends_on value
 
@@ -494,7 +490,7 @@ class QluTaskScheduler:
         """
         Schedule tasks given on instantiation.
 
-        :param tasks: List of QluTasks
+        :param tasks: list of QluTasks
         :param is_montecarlo: If True, random value selected using triangular distribution
         """
         if not tasks:
