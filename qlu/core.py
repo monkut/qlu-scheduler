@@ -13,9 +13,13 @@ from typing import Any, Dict, Generator, Iterable, KeysView, List, Optional, Set
 
 from numpy import percentile
 from numpy.random import triangular
-from pandas.tseries.holiday import AbstractHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessDay
 from toposort import toposort
+try:
+    from pandas.tseries.holiday import AbstractHolidayCalendar
+    from pandas.tseries.offsets import CustomBusinessDay
+except ModuleNotFoundError:
+    AbstractHolidayCalendar = None
+    CustomBusinessDay = None
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +110,10 @@ class AssigneeWorkDateIterator:
 
         # prepare business day offset
         # see: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.tseries.offsets.CustomBusinessDay.html
-        self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)
+        if CustomBusinessDay and AbstractHolidayCalendar:
+            self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)
+        else:
+            self.business_day_offset = None
 
     def __iter__(self):
         return self
