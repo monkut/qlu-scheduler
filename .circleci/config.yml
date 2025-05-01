@@ -25,7 +25,7 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            sudo python3.12 -m pip install pipenv
+            sudo python -m pip install pipenv
             pipenv sync --dev
 
       - save_cache:
