@@ -18,6 +18,3 @@ pytest-cov = "*"
 pylint = "*"
 pydocstyle = "*"
 mypy = "*"
-
-[requires]
-python_version = "3.6"

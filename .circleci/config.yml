@@ -7,34 +7,33 @@ jobs:
   build:
     docker:
       # specify the version you desire here
-      - image: circleci/python:3.6.5
+      - image: cimg/python:3.12
 
     working_directory: ~/repo
 
     steps:
       - checkout
       - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
 
       # Download and cache dependencies
       - restore_cache:
           keys:
-          - v1-dependencies-{{ .Branch }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
+          - v1-dependencies-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           # fallback to using the latest cache if no exact match is found
           - v1-dependencies-{{ .Branch }}-
 
       - run:
           name: install dependencies
           command: |
-            sudo python3.6 -m pip install pipenv
+            pip install pipenv
             pipenv sync --dev
 
       - save_cache:
-          key: v1-dependencies-{{ .Branch }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements-dev.txt" }}
+          key: v1-dependencies-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
             - ./venv
             - /usr/local/bin
-            - /usr/local/bin/lib/python3.6/site-packages
+
       - run:
           name: run code checks
           command: |

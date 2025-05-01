@@ -1,6 +1,0 @@
-pandas
-numpy
-toposort
-
-arrow
-git+https://github.com/monkut/github-org-manager.git

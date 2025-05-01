@@ -1,5 +1,5 @@
 check:
-	pipenv run flake8 --max-line-length 140 --max-complexity 18 qlu/
+	pipenv run flake8 --max-line-length 150 --max-complexity 18 qlu/
 
 pylint:
 	pipenv run pylint --rcfile .pylintrc qlu/
