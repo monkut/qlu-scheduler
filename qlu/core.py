@@ -118,11 +118,7 @@ class AssigneeWorkDateIterator:
     def __next__(self) -> datetime.date:
         if self.business_day_offset:
             self.current_date += self.business_day_offset
-        if hasattr(self.current_date, "to_pydatetime"):
-            self.current_date = self.current_date.to_pydatetime().date()
-        else:
-            assert isinstance(self.current_date, datetime.date)
-            self.current_date += self.current_date
+            self.current_date = self.current_date.to_pydatetime().date()  # convert back to standard datetime object
 
         return self.current_date
 
