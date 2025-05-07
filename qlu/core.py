@@ -116,7 +116,8 @@ class AssigneeWorkDateIterator:
         return self
 
     def __next__(self) -> datetime.date:
-        self.current_date += self.business_day_offset
+        if self.business_day_offset:
+            self.current_date += self.business_day_offset
         self.current_date = self.current_date.to_pydatetime().date()
 
         return self.current_date
