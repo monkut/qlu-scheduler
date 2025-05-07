@@ -91,7 +91,7 @@ class AssigneeWorkDateIterator:
         :param start_date: Date to start iterator at
         """
         self.username = username
-        self.start_date = start_date if start_date else datetime.datetime.utcnow().date()
+        self.start_date = start_date if start_date else datetime.datetime.now(datetime.timezone.utc).date()
 
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
@@ -118,7 +118,11 @@ class AssigneeWorkDateIterator:
     def __next__(self) -> datetime.date:
         if self.business_day_offset:
             self.current_date += self.business_day_offset
-        self.current_date = self.current_date.to_pydatetime().date()
+        if hasattr(self.current_date, "to_pydatetime"):
+            self.current_date = self.current_date.to_pydatetime().date()
+        else:
+            assert isinstance(self.current_date, datetime.date)
+            self.current_date += self.current_date
 
         return self.current_date
 
