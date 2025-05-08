@@ -10,17 +10,18 @@ from collections import Counter, defaultdict, namedtuple
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
-from typing import Any, Generator, Iterable, Iterator, KeysView, Optional, Type
+from typing import Any, Generator, Iterable, Iterator, KeysView, Optional
 
 from numpy import percentile
 from numpy.random import triangular
 from toposort import toposort
 
 try:
-    from pandas.tseries.holiday import AbstractHolidayCalendar
+    from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday
     from pandas.tseries.offsets import CustomBusinessDay
 except ModuleNotFoundError:
     AbstractHolidayCalendar = None
+    Holiday = None
     CustomBusinessDay = None
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class AssigneeWorkDateIterator:
     def __init__(
         self,
         username: str,
-        holiday_calendar: Type[AbstractHolidayCalendar] = None,
+        holiday_dates: Optional[list[datetime.date]] = None,
         workdays: Optional[list[str]] = None,
         personal_holidays: Optional[list[datetime.date]] = None,
         start_date: Optional[datetime.date] = None,
@@ -95,21 +96,48 @@ class AssigneeWorkDateIterator:
 
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
+        self.holiday_dates = holiday_dates
 
         default_weekmask = "Mon Tue Wed Thu Fri"
+        workday_to_weekday_mapping = {
+            "Sun": 6,
+            "Mon": 0,
+            "Tue": 1,
+            "Wed": 2,
+            "Thu": 3,
+            "Fri": 4,
+            "Sat": 5,
+        }
         if workdays:
             # override the default weekmask
             if not all(weekday_id in WEEKDAY_IDENTIFIERS for weekday_id in workdays):
                 raise ValueError(f"workdays must be in {WEEKDAY_IDENTIFIERS}, got: {workdays}")
             prepared_weekmask = " ".join(workdays)
+
         else:
             prepared_weekmask = default_weekmask
+            workdays = default_weekmask.split(" ")
+
+        # define 'weekday' ids for weekdays that are not workdays
+        self.weekdays_off = [weekday for day_id, weekday in workday_to_weekday_mapping.items() if day_id not in workdays]
 
         # prepare business day offset
         # see: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.tseries.offsets.CustomBusinessDay.html
-        if CustomBusinessDay and AbstractHolidayCalendar:
-            self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)
+        if CustomBusinessDay and AbstractHolidayCalendar and Holiday:
+            # build Holiday calendar
+            holiday_rules = []
+            if holiday_dates:
+                for holiday_date in holiday_dates:
+                    h = Holiday(holiday_date.strftime("%Y-%m-%d"), month=holiday_date.month, day=holiday_date.day)  # noqa
+                    holiday_rules.append(h)
+
+            class HolidayCalendar(AbstractHolidayCalendar):
+                rules = holiday_rules
+
+            holiday_calendar = HolidayCalendar()
+            self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)  # noqa
         else:
+            self.personal_holidays = personal_holidays
             self.business_day_offset = None
 
     def __iter__(self):
@@ -122,6 +150,15 @@ class AssigneeWorkDateIterator:
         else:
             # if no business day offset, just increment by 1 day
             self.current_date += datetime.timedelta(days=1)
+            while any(
+                (
+                    self.current_date in self.personal_holidays,
+                    self.current_date.weekday() in self.weekdays_off,
+                    self.current_date in self.holiday_dates,
+                )
+            ):
+                # skip over personal holidays, non-workdays, and public holidays
+                self.current_date += datetime.timedelta(days=1)
 
         return self.current_date
 
@@ -278,14 +315,14 @@ class QluTaskScheduler:
     def __init__(
         self,
         milestones: Iterable[QluMilestone],
-        holiday_calendar: Type[AbstractHolidayCalendar] = None,
+        holiday_dates: Optional[Iterable[datetime.date]] = None,
         assignee_workdays: Optional[dict[str, list[str]]] = None,
-        assignee_personal_holidays: Optional[dict[str, Iterator[datetime.date]]] = None,
+        assignee_personal_holidays: Optional[dict[str, Iterable[datetime.date]]] = None,
         start_date: Optional[datetime.date] = None,
     ):
         """
         :param milestones: list of Milestone objects
-        :param holiday_calendar: Calendar object for determining work days
+        :param holiday_dates: Holidays to apply to all assignees for determining work days
         :param assignee_workdays: Week workdays for given assignee.
             In format:
                 {'username': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] }
@@ -298,7 +335,7 @@ class QluTaskScheduler:
             if not m.start_date or not m.end_date:
                 raise QluMilestoneMissingDate("Milestone must have BOTH start_date and end_date defined: {}".format(m))
         self.id_keyed_milestones = {m.id: m for m in milestones}
-        self.holiday_calendar = holiday_calendar
+        self.holiday_dates = holiday_dates
         self.assignee_workdays = assignee_workdays
         self.assignee_personal_holidays = assignee_personal_holidays
         self._start_date = start_date
@@ -379,7 +416,7 @@ class QluTaskScheduler:
 
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(
-                unique_assignee, self.holiday_calendar, workdays, personal_holidays, start_date=self._start_date
+                unique_assignee, self.holiday_dates, workdays, personal_holidays, start_date=self._start_date
             )
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
         return assignees_date_iterators
