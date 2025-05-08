@@ -96,7 +96,7 @@ class AssigneeWorkDateIterator:
 
         # decrement in order to return initial start date so that the __next__ function can be easily reused
         self.current_date = self.start_date - datetime.timedelta(days=1)
-        self.holiday_dates = holiday_dates
+        self.holiday_dates = holiday_dates if holiday_dates else []
 
         default_weekmask = "Mon Tue Wed Thu Fri"
         workday_to_weekday_mapping = {
