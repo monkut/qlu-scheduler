@@ -17,10 +17,11 @@ from numpy.random import triangular
 from toposort import toposort
 
 try:
-    from pandas.tseries.holiday import AbstractHolidayCalendar
+    from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday
     from pandas.tseries.offsets import CustomBusinessDay
 except ModuleNotFoundError:
     AbstractHolidayCalendar = None
+    Holiday = None
     CustomBusinessDay = None
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,6 @@ class AssigneeWorkDateIterator:
     def __init__(
         self,
         username: str,
-        holiday_calendar: Type[AbstractHolidayCalendar] = None,  # when using pandas
         holiday_dates: Optional[list[datetime.date]] = None,
         workdays: Optional[list[str]] = None,
         personal_holidays: Optional[list[datetime.date]] = None,
@@ -123,8 +123,19 @@ class AssigneeWorkDateIterator:
 
         # prepare business day offset
         # see: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.tseries.offsets.CustomBusinessDay.html
-        if CustomBusinessDay and AbstractHolidayCalendar:
-            self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)
+        if CustomBusinessDay and AbstractHolidayCalendar and Holiday:
+            # build Holiday calendar
+            holiday_rules = []
+            if holiday_dates:
+                for holiday_date in holiday_dates:
+                    h = Holiday(holiday_date.strftime("%Y-%m-%d"), month=holiday_date.month, day=holiday_date.day)  # noqa
+                    holiday_rules.append(h)
+
+            class HolidayCalendar(AbstractHolidayCalendar):
+                rules = holiday_rules
+
+            holiday_calendar = HolidayCalendar()
+            self.business_day_offset = CustomBusinessDay(weekmask=prepared_weekmask, calendar=holiday_calendar, holidays=personal_holidays)  # noqa
         else:
             self.personal_holidays = personal_holidays
             self.business_day_offset = None
@@ -304,14 +315,14 @@ class QluTaskScheduler:
     def __init__(
         self,
         milestones: Iterable[QluMilestone],
-        holiday_calendar: Type[AbstractHolidayCalendar] = None,
+        holiday_dates: Optional[Iterable[datetime.date]] = None,
         assignee_workdays: Optional[dict[str, list[str]]] = None,
-        assignee_personal_holidays: Optional[dict[str, Iterator[datetime.date]]] = None,
+        assignee_personal_holidays: Optional[dict[str, Iterable[datetime.date]]] = None,
         start_date: Optional[datetime.date] = None,
     ):
         """
         :param milestones: list of Milestone objects
-        :param holiday_calendar: Calendar object for determining work days
+        :param holiday_dates: Holidays to apply to all assignees for determining work days
         :param assignee_workdays: Week workdays for given assignee.
             In format:
                 {'username': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] }
@@ -324,7 +335,7 @@ class QluTaskScheduler:
             if not m.start_date or not m.end_date:
                 raise QluMilestoneMissingDate("Milestone must have BOTH start_date and end_date defined: {}".format(m))
         self.id_keyed_milestones = {m.id: m for m in milestones}
-        self.holiday_calendar = holiday_calendar
+        self.holiday_dates = holiday_dates
         self.assignee_workdays = assignee_workdays
         self.assignee_personal_holidays = assignee_personal_holidays
         self._start_date = start_date
@@ -405,7 +416,7 @@ class QluTaskScheduler:
 
             # build work date iterator
             assignees_date_iterator = AssigneeWorkDateIterator(
-                unique_assignee, self.holiday_calendar, workdays, personal_holidays, start_date=self._start_date
+                unique_assignee, self.holiday_dates, workdays, personal_holidays, start_date=self._start_date
             )
             assignees_date_iterators[unique_assignee] = assignees_date_iterator
         return assignees_date_iterators
