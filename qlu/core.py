@@ -10,7 +10,7 @@ from collections import Counter, defaultdict, namedtuple
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
-from typing import Any, Generator, Iterable, KeysView, Optional, Type
+from typing import Any, Generator, Iterable, Iterator, KeysView, Optional, Type
 
 from numpy import percentile
 from numpy.random import triangular
@@ -119,6 +119,9 @@ class AssigneeWorkDateIterator:
         if self.business_day_offset:
             self.current_date += self.business_day_offset
             self.current_date = self.current_date.to_pydatetime().date()  # convert back to standard datetime object
+        else:
+            # if no business day offset, just increment by 1 day
+            self.current_date += datetime.timedelta(days=1)
 
         return self.current_date
 
@@ -174,7 +177,7 @@ class QluTask:
 
     def get_scheduled_dates(self) -> Generator[datetime.date, None, None]:
         if not self.scheduled_dates:
-            raise QluTaskError("QluTask not scheduled: Populated when scheduled via QluTaskScheduler.schedule(Iterable[QluTask])")
+            raise QluTaskError("QluTask not scheduled: Populated when scheduled via QluTaskScheduler.schedule(Iterator[QluTask])")
         for d in self.scheduled_dates:
             yield d
 
@@ -208,7 +211,7 @@ class QluSchedule:
     Result Schedule object of QluTaskScheduler call
     """
 
-    def __init__(self, scheduled_tasks: Iterable[QluTask], assignee_tasks: dict[Any, list[QluTask]]):
+    def __init__(self, scheduled_tasks: Iterator[QluTask], assignee_tasks: dict[Any, list[QluTask]]):
         """
         :param scheduled_tasks: All tasks
         :param assignee_tasks: Assignee Keyed task lists
@@ -277,7 +280,7 @@ class QluTaskScheduler:
         milestones: Iterable[QluMilestone],
         holiday_calendar: Type[AbstractHolidayCalendar] = None,
         assignee_workdays: Optional[dict[str, list[str]]] = None,
-        assignee_personal_holidays: Optional[dict[str, Iterable[datetime.date]]] = None,
+        assignee_personal_holidays: Optional[dict[str, Iterator[datetime.date]]] = None,
         start_date: Optional[datetime.date] = None,
     ):
         """
@@ -300,7 +303,7 @@ class QluTaskScheduler:
         self.assignee_personal_holidays = assignee_personal_holidays
         self._start_date = start_date
 
-    def montecarlo(self, tasks: Iterable[QluTask], trials: int = 5000, q: int = 90) -> tuple[dict[Any, Counter], dict[str, datetime.date]]:
+    def montecarlo(self, tasks: Iterator[QluTask], trials: int = 5000, q: int = 90) -> tuple[dict[Any, Counter], dict[str, datetime.date]]:
         """
         Run montecarlo simulation for the number of trials specified.
 
@@ -338,7 +341,7 @@ class QluTaskScheduler:
             if milestone_id not in self.id_keyed_milestones:
                 raise MissingQluMilestone("Required QluMilestone definition missing: {}".format(milestone_id))
 
-    def _prepare_assignee_workday_iterators(self, unique_assignees: set[str]) -> dict[Any, Iterable]:
+    def _prepare_assignee_workday_iterators(self, unique_assignees: set[str]) -> dict[Any, Iterator[AssigneeWorkDateIterator]]:
         """
         Create the workday iterators for all assignees.
 
@@ -433,7 +436,7 @@ class QluTaskScheduler:
                 temp_priority_sorted_assignee_tasks = []
                 for temp_assignee_task in assignee_tasks:
                     milestone_id = temp_assignee_task.milestone_id
-                    _, milestone_start_date, milestone_end_date = self.id_keyed_milestones[milestone_id]
+                    _, _, milestone_end_date = self.id_keyed_milestones[milestone_id]
                     key = (milestone_end_date, temp_assignee_task.absolute_priority)
                     temp_priority_sorted_assignee_tasks.append((key, temp_assignee_task))
                 priority_sorted_assignee_tasks = [t for key, t in sorted(temp_priority_sorted_assignee_tasks, key=itemgetter(0))]
