@@ -10,7 +10,7 @@ from collections import Counter, defaultdict, namedtuple
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter, itemgetter
-from typing import Any, Generator, Iterable, Iterator, KeysView, Optional, Type
+from typing import Any, Generator, Iterable, Iterator, KeysView, Optional
 
 from numpy import percentile
 from numpy.random import triangular
